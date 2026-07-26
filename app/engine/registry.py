@@ -147,12 +147,39 @@ class ResponseTransformRegistry:
         return self._transforms.get(name)
 
 
+class AuthStrategyRegistry:
+    """
+    Реестр фабрик auth-стратегий.
+    Фабрика получает AuthConfig и возвращает AuthStrategy.
+    """
+
+    def __init__(self):
+        self._factories: dict[str, Callable] = {}
+
+    def register(self, name: str):
+        def decorator(fn):
+            self._factories[name] = fn
+            return fn
+        return decorator
+
+    def create(self, name: str, config: Any) -> Optional[Callable]:
+        factory = self._factories.get(name)
+        if factory is None:
+            return None
+        return factory(config)
+
+    def has(self, name: str) -> bool:
+        return name in self._factories
+
+
 # Глобальные экземпляры реестров
 access_handler_registry = AccessHandlerRegistry()
 response_handler_registry = ResponseHandlerRegistry()
 response_transform_registry = ResponseTransformRegistry()
+auth_strategy_registry = AuthStrategyRegistry()
 
 # Декораторы для удобного импорта
 register_access_handler = access_handler_registry.register
 register_response_handler = response_handler_registry.register
 register_response_transform = response_transform_registry.register
+register_auth_strategy = auth_strategy_registry.register

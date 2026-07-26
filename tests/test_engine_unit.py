@@ -6,7 +6,7 @@ Unit-тесты для PyApiGate engine.
 import pytest
 from flask import Flask
 from app.engine.models import (
-    RouteConfig, ProxyConfig, ParamsConfig,
+    AuthConfig, RouteConfig, ProxyConfig, ParamsConfig,
     GatewayConfig, ServiceConfig, RouteType
 )
 from app.engine.context import RouteContext, AccessResult
@@ -109,3 +109,20 @@ class TestStatus:
     def test_unauthorized(self, app_ctx):
         resp, code = unauthorized()
         assert code == 401
+
+
+class TestAuthConfig:
+    def test_default_auth_config(self):
+        config = GatewayConfig()
+        assert config.auth.strategy == "none"
+        assert config.auth.public_key_path is None
+        assert config.auth.expected_issuer is None
+
+    def test_auth_registry_rsa_jwt_registered(self):
+        import app.auth_strategies  # noqa: F401 — triggers @register_auth_strategy
+        from app.engine.registry import auth_strategy_registry
+        assert auth_strategy_registry.has("rsa_jwt")
+
+    def test_auth_registry_unknown(self):
+        from app.engine.registry import auth_strategy_registry
+        assert not auth_strategy_registry.has("nonexistent")

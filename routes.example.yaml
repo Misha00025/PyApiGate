@@ -1,22 +1,30 @@
 # Пример конфигурации PyApiGate
 # Скопируйте в routes.yaml и отредактируйте под свои нужды
+
+# ─── Auth ────────────────────────────────────────────
+# Определяет стратегию аутентификации.
+#   strategy: rsa_jwt — JWT с RSA-256 подписью (public_key_path обязателен)
+#   strategy: none — без аутентификации (только маршруты с auth: none)
+# Для кастомных стратегий — @register_auth_strategy("name") в коде
+# ──────────────────────────────────────────────────────
 base_path: ""
+
+auth:
+  strategy: rsa_jwt
+  public_key_path: /certs/public.pem
+  expected_issuer: "https://auth.example.com"
 
 services:
   example:
     base_url: "http://localhost:18080"
-  auth:
-    base_url: "http://auth-service:8080"
 
 routes:
-  # 1. Response handler (без прокси)
   - path: /hello
     methods: [GET]
     handler: hello_handler
     auth: none
-    description: "Простой hello-world хендлер"
+    description: "Hello-world handler"
 
-  # 2. Прокси в бэкенд-сервис
   - path: /api/users/<int:user_id>
     methods: [GET, PUT]
     proxy:
@@ -24,11 +32,9 @@ routes:
       path: /users/{user_id}
     params:
       query: "*"
-    response:
-      wrap: data
-    description: "Прокси к example-сервису"
+    auth: required
+    description: "Proxy to example service"
 
-  # 3. Прокси с access-контролем и body-injection
   - path: /api/groups/<int:group_id>/items
     methods:
       GET:
@@ -45,4 +51,4 @@ routes:
           body:
             ownerId: "{jwt.userId}"
     auth: required
-    description: "CRUD для items с проверкой прав"
+    description: "CRUD for items with access control"

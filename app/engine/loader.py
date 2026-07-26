@@ -16,6 +16,7 @@ from typing import Any, Optional
 import yaml
 
 from app.engine.models import (
+    AuthConfig,
     GatewayConfig,
     ParamsConfig,
     ProxyConfig,
@@ -79,7 +80,23 @@ def _parse_config(raw: dict) -> GatewayConfig:
         parsed_routes = _parse_route(route_def)
         routes.extend(parsed_routes)
 
-    return GatewayConfig(base_path=base_path, services=services, routes=routes)
+    # Парсим auth секцию
+    auth_raw = raw.get("auth", {}) or {}
+    if isinstance(auth_raw, dict):
+        auth_config = AuthConfig(
+            strategy=auth_raw.get("strategy", "none"),
+            public_key_path=auth_raw.get("public_key_path"),
+            expected_issuer=auth_raw.get("expected_issuer"),
+        )
+    else:
+        auth_config = AuthConfig()
+
+    return GatewayConfig(
+        base_path=base_path,
+        auth=auth_config,
+        services=services,
+        routes=routes,
+    )
 
 
 def _parse_route(route_def: dict) -> list[RouteConfig]:

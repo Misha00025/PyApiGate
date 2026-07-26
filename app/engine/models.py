@@ -109,10 +109,23 @@ class ServiceConfig:
 
 
 @dataclass
+class AuthConfig:
+    """Конфигурация стратегии аутентификации из YAML."""
+    strategy: str = "none"
+    """Имя стратегии (rsa_jwt, none, или кастомная)."""
+    public_key_path: Optional[str] = None
+    """Путь к RSA public key PEM-файлу (для rsa_jwt)."""
+    expected_issuer: Optional[str] = None
+    """Ожидаемый iss claim в JWT (опционально)."""
+
+
+@dataclass
 class GatewayConfig:
     """Корневая конфигурация API Gateway."""
     base_path: str = "/v2"
     """Префикс URL для всех маршрутов (например, /v2 или пустая строка /)."""
+    auth: AuthConfig = field(default_factory=AuthConfig)
+    """Конфигурация стратегии аутентификации."""
     services: dict[str, ServiceConfig] = field(default_factory=dict)
     """Словарь бэкенд-сервисов {имя: конфиг}."""
     routes: list[RouteConfig] = field(default_factory=list)

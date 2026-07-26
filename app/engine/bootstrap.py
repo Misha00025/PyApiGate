@@ -15,7 +15,7 @@ from flask import Blueprint, Flask, request as flask_request
 from app.engine.context import RouteContext
 from app.engine.loader import load_config
 from app.engine.models import GatewayConfig, RouteConfig
-from app.engine.pipeline import AuthStrategy, execute_pipeline
+from app.engine.pipeline import execute_pipeline
 from app.engine.registry import ServiceRegistry
 
 
@@ -23,7 +23,6 @@ def bootstrap(
     flask_app: Flask,
     config_path: Optional[str] = None,
     import_handlers: bool = True,
-    auth_strategy: AuthStrategy = None,
 ) -> GatewayConfig:
     """
     Загружает конфигурацию и регистрирует маршруты в Flask-приложении.
@@ -32,7 +31,6 @@ def bootstrap(
         flask_app: Flask-приложение.
         config_path: Путь к YAML-файлу. Если None — ищет routes.yaml в корне сервиса.
         import_handlers: Автоматически импортировать хендлеры.
-        auth_strategy: Функция аутентификации (optional).
 
     Returns:
         GatewayConfig — загруженная конфигурация.
@@ -48,6 +46,18 @@ def bootstrap(
             print("[Engine] Handlers imported from handlers/ directory")
         except ImportError as e:
             print(f"[Engine] Warning: handlers not available: {e}")
+
+    # Создаём auth strategy из конфига
+    from app.engine.registry import auth_strategy_registry
+
+    if config.auth.strategy and config.auth.strategy != "none":
+        strategy = auth_strategy_registry.create(config.auth.strategy, config.auth)
+        if strategy is None:
+            print(f"[Engine] Warning: unknown auth strategy '{config.auth.strategy}', auth disabled")
+        else:
+            print(f"[Engine] Using auth strategy: {config.auth.strategy}")
+    else:
+        strategy = None
 
     # Создаём ServiceRegistry
     services_dict = {}
@@ -65,7 +75,7 @@ def bootstrap(
 
     # Регистрируем каждый маршрут
     for route in config.routes:
-        _register_route(bp, route, registry, auth_strategy)
+        _register_route(bp, route, registry, strategy)
 
     # Регистрируем Blueprint в приложении
     flask_app.register_blueprint(bp)
@@ -78,11 +88,11 @@ def _register_route(
     bp: Blueprint,
     route: RouteConfig,
     registry: ServiceRegistry,
-    auth_strategy: AuthStrategy = None,
+    auth_strategy: Optional[Callable] = None,
 ) -> None:
     """Регистрирует один маршрут в Blueprint."""
 
-    def make_view_func(rc: RouteConfig, reg: ServiceRegistry, auth: AuthStrategy):
+    def make_view_func(rc: RouteConfig, reg: ServiceRegistry, auth: Optional[Callable]):
         def view_func(**path_params):
             ctx = RouteContext(
                 request=flask_request,

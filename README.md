@@ -27,10 +27,10 @@ routes:
 
 ```bash
 pip install -r req.txt
+cp routes.example.yaml routes.yaml
+# настроить routes.yaml под себя
 python main.py
 ```
-
-This starts the gateway on `:5000` with `routes.example.yaml`. No auth checks (no JWT key loaded).
 
 ---
 
@@ -226,44 +226,43 @@ ctx.deny()          # -> 403 Forbidden
 
 ## Auth Strategy
 
-PyApiGate decouples authentication via **AuthStrategy** — a function that decides whether a request is authenticated:
+Authentication is configured in YAML via the `auth` section:
 
-```python
-AuthStrategy = Callable[[RouteContext], Optional[dict]]
-# Returns:
-#   dict  -> JWT payload (authenticated)
-#   None  -> 401 Unauthorized
+```yaml
+auth:
+  strategy: rsa_jwt
+  public_key_path: /certs/public.pem
+  expected_issuer: "https://auth.example.com"
 ```
 
-### Built-in: RSA JWT
+PyApiGate ships with built-in strategies (`rsa_jwt`). To use a custom strategy, register it in Python before calling `create_app()`:
+
+```python
+from app.engine.registry import register_auth_strategy
+from app.engine.models import AuthConfig
+
+@register_auth_strategy("api_key")
+def api_key_factory(config: AuthConfig):
+    def _validate(ctx):
+        key = ctx.request.headers.get("X-API-Key")
+        if key == "my-secret":
+            return {"userId": "service", "role": "admin"}
+        return None
+    return _validate
+```
+
+Once registered, reference it in YAML by name:
+
+```yaml
+auth:
+  strategy: api_key
+```
+
+`create_app()` now takes no auth parameters:
 
 ```python
 from app import create_app
-from app.auth_strategies import rsa_jwt_auth_strategy
-
-with open("public.pem", "rb") as f:
-    public_key = f.read()
-
-auth = rsa_jwt_auth_strategy(public_key, oidc_issuer="https://auth.example.com")
-app = create_app(auth_strategy=auth)
-```
-
-### Custom: API Key
-
-```python
-def api_key_strategy(ctx):
-    api_key = ctx.request.headers.get("X-API-Key")
-    if api_key == "my-secret-key":
-        return {"userId": "service-account", "role": "admin"}
-    return None
-
-app = create_app(auth_strategy=api_key_strategy)
-```
-
-### No Auth
-
-```python
-app = create_app()  # auth_strategy defaults to None — routes with auth: required will 501
+app = create_app(config_path="routes.yaml")
 ```
 
 ---
@@ -331,8 +330,6 @@ Available methods: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`, `.req
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PUBLIC_KEY_PATH` | Path to RSA public key PEM file | `public.pem` |
-| `OIDC_ISSUER` | Optional OIDC issuer for `iss` claim check | — |
 | `CONFIG_PATH` | Path to routes.yaml | `routes.yaml` |
 
 Services in `routes.yaml` support `${ENV_VAR}` and `${ENV_VAR:-default}` substitution.
@@ -387,7 +384,6 @@ All 15 tests pass in ~0.08s with no external dependencies or Docker.
 docker build -t pyapi-gate .
 docker run -p 5000:5000 \
   -v /path/to/routes.yaml:/app/routes.yaml \
-  -v /path/to/public.pem:/app/public.pem \
   -e CONFIG_PATH=/app/routes.yaml \
   pyapi-gate
 ```

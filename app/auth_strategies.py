@@ -7,15 +7,17 @@ from typing import Optional
 import jwt as pyjwt
 
 from app.engine.context import RouteContext
+from app.engine.models import AuthConfig
+from app.engine.registry import register_auth_strategy
 
 
-def rsa_jwt_auth_strategy(public_key: str, oidc_issuer: Optional[str] = None):
+def rsa_jwt_auth_strategy(public_key: str, expected_issuer: Optional[str] = None):
     """
     Создаёт стратегию аутентификации на основе RSA JWT.
 
     Args:
         public_key: RSA public key в PEM-формате.
-        oidc_issuer: Опциональный OIDC issuer для проверки iss claim.
+        expected_issuer: Опциональный OAuth issuer для проверки iss claim.
 
     Returns:
         Функция auth_strategy для передачи в create_app().
@@ -42,7 +44,7 @@ def rsa_jwt_auth_strategy(public_key: str, oidc_issuer: Optional[str] = None):
                 options=options,
             )
 
-            if oidc_issuer and payload.get("iss") and payload["iss"] != oidc_issuer:
+            if expected_issuer and payload.get("iss") and payload["iss"] != expected_issuer:
                 return None
 
             return payload
@@ -50,3 +52,15 @@ def rsa_jwt_auth_strategy(public_key: str, oidc_issuer: Optional[str] = None):
             return None
 
     return _validate
+
+
+@register_auth_strategy("rsa_jwt")
+def _rsa_jwt_factory(config: AuthConfig):
+    """Фабрика для rsa_jwt стратегии из YAML-конфига."""
+    if not config.public_key_path:
+        raise ValueError("public_key_path required for rsa_jwt strategy")
+
+    with open(config.public_key_path, "rb") as f:
+        public_key = f.read()
+
+    return rsa_jwt_auth_strategy(public_key, expected_issuer=config.expected_issuer)
