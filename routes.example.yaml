@@ -1,11 +1,11 @@
-# Пример конфигурации PyApiGate
-# Скопируйте в routes.yaml и отредактируйте под свои нужды
+# PyApiGate configuration example
+# Copy to routes.yaml and edit for your needs
 
 # ─── Auth ────────────────────────────────────────────
-# Определяет стратегию аутентификации.
-#   strategy: rsa_jwt — JWT с RSA-256 подписью (public_key_path обязателен)
-#   strategy: none — без аутентификации (только маршруты с auth: none)
-# Для кастомных стратегий — @register_auth_strategy("name") в коде
+# Defines the authentication strategy.
+#   strategy: rsa_jwt — JWT with RSA-256 signature (public_key_path required)
+#   strategy: none — no authentication (only routes with auth: none)
+# For custom strategies — @register_auth_strategy("name") in code
 # ──────────────────────────────────────────────────────
 base_path: ""
 
@@ -35,20 +35,20 @@ routes:
     auth: required
     description: "Proxy to example service"
 
-  - path: /api/groups/<int:group_id>/items
+  - path: /api/users/<int:user_id>/reviews
     methods:
       GET:
         proxy:
           service: example
-          path: /groups/{group_id}/items
+          path: /users/{user_id}/reviews
         access: reader
       POST:
         proxy:
           service: example
-          path: /groups/{group_id}/items
+          path: /users/{user_id}/reviews
         access: writer
         params:
           body:
             ownerId: "{jwt.userId}"
     auth: required
-    description: "CRUD for items with access control"
+    description: "CRUD for reviews with access control"

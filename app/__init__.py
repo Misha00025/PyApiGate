@@ -1,5 +1,5 @@
 """
-Flask app factory для PyApiGate.
+Flask app factory for PyApiGate.
 """
 from __future__ import annotations
 
@@ -11,22 +11,17 @@ from flask import Flask
 
 def create_app(
     config_path: Optional[str] = None,
-    import_handlers: bool = True,
-    base_path: Optional[str] = None,
 ) -> Flask:
     """
-    Создаёт и настраивает Flask-приложение с декларативным engine.
+    Creates and configures a Flask application with the declarative engine.
 
     Args:
-        config_path: Путь к routes.yaml. Если None — ищет routes.yaml в CWD.
-        import_handlers: Автоматически импортировать хендлеры.
-        base_path: Если задан, переопределяет base_path из YAML.
+        config_path: Path to routes.yaml. If None — looks for routes.yaml in CWD.
 
     Returns:
-        Настроенное Flask-приложение.
+        Configured Flask application.
     """
     application = Flask(__name__)
-    application.config['JSON_AS_ASCII'] = False
 
     from flask import json
     json.provider.DefaultJSONProvider.ensure_ascii = False
@@ -35,7 +30,6 @@ def create_app(
     config = bootstrap(
         application,
         config_path=config_path,
-        import_handlers=import_handlers,
     )
 
     return application

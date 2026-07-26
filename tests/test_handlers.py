@@ -1,4 +1,4 @@
-"""Тест response-хендлера через Flask test client."""
+"""Test response handler via Flask test client."""
 
 from app.engine.registry import register_response_handler
 from app.engine.status import ok

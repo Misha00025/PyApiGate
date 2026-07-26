@@ -1,9 +1,9 @@
 """
-Парсинг YAML-конфигурации в модели GatewayConfig.
+Parsing YAML configuration into GatewayConfig models.
 
-Поддерживает:
-- Секцию services
-- Секцию routes с нормализацией single-method и multi-method форматов
+Supports:
+- Services section
+- Routes section with single-method and multi-method normalization
 - ProxyConfig, ParamsConfig, RouteConfig
 """
 
@@ -27,13 +27,13 @@ from app.engine.models import (
 
 def load_config(path: Optional[str] = None) -> GatewayConfig:
     """
-    Загружает и парсит YAML-конфигурацию маршрутов.
+    Loads and parses YAML route configuration.
 
     Args:
-        path: Путь к YAML-файлу. Если None — ищет routes.yaml в корне сервиса.
+        path: Path to YAML file. If None — looks for routes.yaml in the service root.
 
     Returns:
-        GatewayConfig с распарсенными сервисами и маршрутами.
+        GatewayConfig with parsed services and routes.
     """
     if path is None:
         path = "routes.yaml"
@@ -45,7 +45,7 @@ def load_config(path: Optional[str] = None) -> GatewayConfig:
 
 
 def _resolve_env_vars(value: str) -> str:
-    """Подставляет переменные окружения формата ${VAR} или ${VAR:-default}."""
+    """Substitutes environment variables in ${VAR} or ${VAR:-default} format."""
     def _replace(match):
         var_name = match.group(1)
         raw_default = match.group(2)
@@ -63,8 +63,8 @@ def _resolve_env_vars(value: str) -> str:
 
 
 def _parse_config(raw: dict) -> GatewayConfig:
-    """Парсит сырой YAML-словарь в GatewayConfig."""
-    base_path = raw.get("base_path", "/v2") or ""
+    """Parses raw YAML dict into GatewayConfig."""
+    base_path = raw.get("base_path", "") or ""
     services_raw = raw.get("services", {}) or {}
     routes_raw = raw.get("routes", []) or []
 
@@ -80,7 +80,7 @@ def _parse_config(raw: dict) -> GatewayConfig:
         parsed_routes = _parse_route(route_def)
         routes.extend(parsed_routes)
 
-    # Парсим auth секцию
+    # Parse auth section
     auth_raw = raw.get("auth", {}) or {}
     if isinstance(auth_raw, dict):
         auth_config = AuthConfig(
@@ -101,16 +101,16 @@ def _parse_config(raw: dict) -> GatewayConfig:
 
 def _parse_route(route_def: dict) -> list[RouteConfig]:
     """
-    Парсит один YAML-блок маршрута в один или несколько RouteConfig.
+    Parses a single YAML route block into one or more RouteConfig.
 
-    Поддерживает:
-    - Простой формат: method + proxy/handler
-    - Multi-method формат: methods: {GET: ..., POST: ...}
-    - Список methods: [GET, POST] с общим access/proxy
+    Supports:
+    - Simple format: method + proxy/handler
+    - Multi-method format: methods: {GET: ..., POST: ...}
+    - List methods: [GET, POST] with shared access/proxy
     """
     path = route_def["path"]
 
-    # Multi-method формат (methods — словарь)
+    # Multi-method format (methods is a dict)
     if "methods" in route_def and isinstance(route_def["methods"], dict):
         result = []
         for method, method_cfg in route_def["methods"].items():
@@ -121,7 +121,7 @@ def _parse_route(route_def: dict) -> list[RouteConfig]:
             result.extend(_parse_single_route(path, merged))
         return result
 
-    # Список methods: [GET, POST] — один конфиг на все
+    # List methods: [GET, POST] — one config for all
     methods = route_def.get("methods")
     if isinstance(methods, list):
         result = []
@@ -131,12 +131,12 @@ def _parse_route(route_def: dict) -> list[RouteConfig]:
             result.extend(_parse_single_route(path, single_def))
         return result
 
-    # Одиночный method
+    # Single method
     return _parse_single_route(path, route_def)
 
 
 def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
-    """Парсит один маршрут с одним HTTP-методом."""
+    """Parses a single route with one HTTP method."""
     methods = [route_def.pop("method", "GET")]
 
     auth = route_def.get("auth", "required")
@@ -166,16 +166,6 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
             body=params_raw.get("body"),
         )
 
-    # Response transform
-    response = None
-    if "response" in route_def:
-        from app.engine.models import ResponseConfig
-        response_raw = route_def["response"]
-        response = ResponseConfig(
-            wrap=response_raw.get("wrap"),
-            handler=response_raw.get("handler"),
-        )
-
     return [
         RouteConfig(
             path=path,
@@ -185,7 +175,6 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
             proxy=proxy,
             handler=handler,
             params=params,
-            response=response,
             description=description,
         )
     ]

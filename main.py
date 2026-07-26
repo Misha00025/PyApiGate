@@ -1,5 +1,5 @@
 """
-Dev-сервер для PyApiGate.
+Dev server for PyApiGate.
 """
 import os
 from app import create_app

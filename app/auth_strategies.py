@@ -1,5 +1,5 @@
 """
-Встроенные стратегии аутентификации для PyApiGate.
+Built-in authentication strategies for PyApiGate.
 """
 from __future__ import annotations
 
@@ -13,14 +13,14 @@ from app.engine.registry import register_auth_strategy
 
 def rsa_jwt_auth_strategy(public_key: str, expected_issuer: Optional[str] = None):
     """
-    Создаёт стратегию аутентификации на основе RSA JWT.
+    Creates an RSA JWT authentication strategy.
 
     Args:
-        public_key: RSA public key в PEM-формате.
-        expected_issuer: Опциональный OAuth issuer для проверки iss claim.
+        public_key: RSA public key in PEM format.
+        expected_issuer: Optional OAuth issuer for checking the iss claim.
 
     Returns:
-        Функция auth_strategy для передачи в create_app().
+        auth_strategy function for passing to create_app().
     """
     def _validate(ctx: RouteContext) -> Optional[dict]:
         raw_token = ctx.request.headers.get("Authorization")
@@ -56,7 +56,7 @@ def rsa_jwt_auth_strategy(public_key: str, expected_issuer: Optional[str] = None
 
 @register_auth_strategy("rsa_jwt")
 def _rsa_jwt_factory(config: AuthConfig):
-    """Фабрика для rsa_jwt стратегии из YAML-конфига."""
+    """Factory for rsa_jwt strategy from YAML config."""
     if not config.public_key_path:
         raise ValueError("public_key_path required for rsa_jwt strategy")
 

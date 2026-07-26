@@ -1,8 +1,8 @@
 """
-HTTP-прокси для декларативного API Gateway.
+HTTP proxy for the declarative API Gateway.
 
-Выполняет HTTP-запрос к бэкенд-сервису с подстановкой параметров
-из path, query, body и JWT.
+Performs HTTP requests to backend services with parameter substitution
+from path, query, body and JWT.
 """
 
 from __future__ import annotations
@@ -14,46 +14,45 @@ import requests as http_requests
 
 from app.engine.context import RouteContext
 from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
+from app.engine.status import bad_gateway, not_implemented
 from app.security import get_user_id
 
 
 def execute_proxy(route: RouteConfig, ctx: RouteContext) -> FlaskResponse:
     """
-    Выполняет прокси-запрос к бэкенд-сервису.
+    Executes a proxy request to a backend service.
 
-    1. Подставляет path_params в целевой URL
-    2. Подставляет query/body параметры
-    3. Делает HTTP-запрос
-    4. Возвращает Flask Response с телом и статусом бэкенда
+    1. Substitutes path_params into the target URL
+    2. Injects query/body parameters
+    3. Makes the HTTP request
+    4. Returns a Flask Response with backend body and status
 
     Args:
-        route: Конфигурация маршрута.
-        ctx: Контекст запроса с path_params, jwt, services.
+        route: Route configuration.
+        ctx: Request context with path_params, jwt, services.
 
     Returns:
         Flask Response.
     """
     proxy_cfg = route.proxy
     if proxy_cfg is None:
-        from app.engine.status import not_implemented
         return not_implemented("No proxy config")
 
-    # 1. Подставляем path_params в целевой путь
+    # 1. Substitute path_params into the target path
     target_path = _resolve_path(proxy_cfg.path, ctx.path_params)
 
-    # 2. Получаем клиент сервиса
+    # 2. Get the service client
     client = ctx.services.get_client(proxy_cfg.service)
     if client is None:
-        from app.engine.status import not_implemented
         return not_implemented(f"Unknown service: {proxy_cfg.service}")
 
-    # 3. Собираем параметры запроса
+    # 3. Build request parameters
     method = ctx.request.method.lower()
     headers = _build_headers(ctx, proxy_cfg)
     params = _build_query_params(route, ctx)
     body = _build_body(route, ctx)
 
-    # 4. Выполняем запрос
+    # 4. Execute the request
     try:
         if proxy_cfg.skip_body or method in ("get", "delete"):
             resp = client.request(
@@ -71,15 +70,14 @@ def execute_proxy(route: RouteConfig, ctx: RouteContext) -> FlaskResponse:
                 json=body,
             )
     except http_requests.RequestException as e:
-        from app.engine.status import bad_gateway
         return bad_gateway(f"Upstream error: {e}")
 
-    # 5. Возвращаем ответ
+    # 5. Return the response
     return _to_flask_response(resp)
 
 
 def _resolve_path(template: str, path_params: dict[str, Any]) -> str:
-    """Подставляет {placeholders} из path_params в шаблон пути."""
+    """Substitutes {placeholders} from path_params into the path template."""
     result = template
     for key, value in path_params.items():
         placeholder = "{" + key + "}"
@@ -88,7 +86,7 @@ def _resolve_path(template: str, path_params: dict[str, Any]) -> str:
 
 
 def _build_headers(ctx: RouteContext, proxy_cfg: ProxyConfig) -> dict[str, str]:
-    """Собирает заголовки для прокси-запроса."""
+    """Builds headers for the proxy request."""
     headers = {}
     for key, value in ctx.request.headers.items():
         if key.lower() not in ("host", "content-length", "content-type"):
@@ -98,7 +96,7 @@ def _build_headers(ctx: RouteContext, proxy_cfg: ProxyConfig) -> dict[str, str]:
 
 
 def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]:
-    """Собирает query-параметры для прокси-запроса."""
+    """Builds query parameters for the proxy request."""
     params_cfg = route.params
     if params_cfg is None or params_cfg.query is None:
         return dict(ctx.request.args)
@@ -124,7 +122,7 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
 
 
 def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
-    """Собирает тело для прокси-запроса (body injection)."""
+    """Builds the body for the proxy request (body injection)."""
     params_cfg = route.params
     if params_cfg is None or params_cfg.body is None:
         return ctx.request.get_json(silent=True)
@@ -137,13 +135,13 @@ def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
 
 def _resolve_source(expr: str, ctx: RouteContext) -> Any:
     """
-    Разрешает source-выражение в значение.
+    Resolves a source expression to a value.
 
-    Поддерживаемые форматы:
-    - "{jwt.field}" — из payload JWT
-    - "{path.field}" — из path-параметров
-    - "{query.field}" — из query-параметров запроса
-    - "литерал" — возвращается как есть
+    Supported formats:
+    - "{jwt.field}" — from JWT payload
+    - "{path.field}" — from path parameters
+    - "{query.field}" — from request query parameters
+    - "literal" — returned as-is
     """
     if expr.startswith("{") and expr.endswith("}"):
         inner = expr[1:-1]
@@ -162,7 +160,7 @@ def _resolve_source(expr: str, ctx: RouteContext) -> Any:
 
 
 def _to_flask_response(resp: http_requests.Response) -> FlaskResponse:
-    """Конвертирует requests.Response в Flask Response."""
+    """Converts a requests.Response to a Flask Response."""
     content_type = resp.headers.get("Content-Type", "application/json")
 
     try:

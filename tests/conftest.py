@@ -8,10 +8,9 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @pytest.fixture
 def app():
-    """Flask app без аутентификации для тестов."""
+    """Flask app without authentication for tests."""
     application = create_app(
         config_path=os.path.join(TESTS_DIR, "test_routes.yaml"),
-        import_handlers=False,
     )
     return application
 

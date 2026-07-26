@@ -1,8 +1,8 @@
 """
-Контекст запроса для декларативного API Gateway.
+Request context for the declarative API Gateway.
 
-Содержит RouteContext — объект, передаваемый через pipeline
-и доступный всем хендлерам (access и response).
+Contains RouteContext — the object passed through the pipeline
+and available to all handlers (access and response).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from flask import Request
 
 
 class AccessResult:
-    """Результат проверки access-хендлера."""
+    """Result of an access handler check."""
 
     def __init__(self, allowed: bool, response=None):
         self.allowed = allowed
@@ -24,39 +24,37 @@ class AccessResult:
 @dataclass
 class RouteContext:
     """
-    Контекст запроса, пробрасываемый через весь pipeline.
+    Request context passed through the entire pipeline.
 
-    Предоставляет хендлерам:
-    - request: оригинальный Flask Request
-    - path_params: параметры из URL (group_id, character_id, ...)
-    - jwt: декодированный payload JWT (или None)
-    - services: реестр HTTP-клиентов для бэкенд-сервисов
-    - state: mutable dict для передачи данных между этапами pipeline
+    Provides handlers with:
+    - request: original Flask Request
+    - path_params: parameters from URL (user_id, item_id, ...)
+    - jwt: decoded JWT payload (or None)
+    - services: registry of HTTP clients for backend services
+    - state: mutable dict for passing data between pipeline stages
 
-    Хендлеры используют ctx.allow() и ctx.deny() для возврата результата.
+    Handlers use ctx.allow() and ctx.deny() to return results.
     """
     request: Request
-    """Оригинальный Flask Request."""
+    """Original Flask Request."""
     path_params: dict[str, Any]
-    """Параметры из URL (group_id, character_id, ...)."""
+    """Parameters from URL (user_id, item_id, ...)."""
     jwt: Optional[dict[str, Any]] = None
-    """Декодированный payload JWT (или None, если auth=none)."""
+    """Decoded JWT payload (or None if auth=none)."""
     services: Any = None
-    """ServiceRegistry с HTTP-клиентами для бэкендов."""
+    """ServiceRegistry with HTTP clients for backends."""
     state: dict[str, Any] = field(default_factory=dict)
-    """Mutable storage для передачи данных между этапами pipeline."""
-    params: dict[str, Any] = field(default_factory=dict)
-    """Собранные query + body параметры после injection."""
+    """Mutable storage for passing data between pipeline stages."""
 
     def allow(self) -> AccessResult:
-        """Возвращает положительный результат проверки доступа."""
+        """Returns a positive access check result."""
         return AccessResult(allowed=True)
 
     def deny(self, response=None) -> AccessResult:
         """
-        Возвращает отрицательный результат проверки доступа.
+        Returns a negative access check result.
 
-        Если response не указан, будет использован стандартный 403 Forbidden.
+        If response is not provided, a standard 403 Forbidden is used.
         """
         if response is None:
             from app.engine.status import forbidden

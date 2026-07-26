@@ -64,7 +64,7 @@ def hello_handler(ctx):
     return ok({"message": "Hello from PyApiGate!"})
 ```
 
-Any `.py` file placed in a `handlers/` directory next to your app is auto-imported at startup.
+To use handlers, create a `handlers/` directory with an `__init__.py` that imports your handler modules, then import the handlers package before calling `create_app()`.
 
 ### 3. Run
 
@@ -148,11 +148,10 @@ Per-method configuration:
 | `path` | string | — | Flask route path (e.g. `/users/<int:id>`) |
 | `methods` | list/dict | `[GET]` | HTTP methods |
 | `auth` | `"required"` / `"none"` | `"required"` | Whether JWT is required |
-| `access` | string/dict | `null` | Access handler name(s) |
+| `access` | string | `null` | Access handler name |
 | `proxy` | object | `null` | Proxy config (see below) |
 | `handler` | string | `null` | Response handler name |
 | `params` | object | `null` | Parameter injection config |
-| `response` | object | `null` | Response transform config |
 | `description` | string | `null` | Human-readable description |
 
 **Proxy config:**
@@ -198,7 +197,7 @@ def handle_profile(ctx):
 
 ### Handler Conventions
 
-- All `.py` files in a `handlers/` directory are auto-imported when the app starts.
+- Create a `handlers/` package with an `__init__.py` that imports your handler modules, then import the package before calling `create_app()`.
 - Handlers receive a `RouteContext` with access to request, JWT, path params, and backend services.
 - Access handlers return `ctx.allow()` or `ctx.deny()`.
 - Response handlers return a Flask `Response` (use helpers from `app.engine.status`).
@@ -285,28 +284,6 @@ Shorthand `params.query: "*"` forwards all incoming query parameters plus `userI
 
 ---
 
-## Response Transform
-
-Modify proxy responses before sending to the client:
-
-```yaml
-response:
-  wrap: data           # wrap response in {"data": <original>}
-  handler: my_transform  # custom transform function
-```
-
-Custom transform:
-
-```python
-from app.engine.registry import register_response_transform
-
-@register_response_transform("my_transform")
-def transform(data, ctx):
-    return {"results": data, "page": 1}
-```
-
----
-
 ## ServiceRegistry
 
 Access backend services from response handlers:
@@ -343,13 +320,13 @@ PyApiGate/
 ├── app/
 │   ├── __init__.py              # create_app() — Flask app factory
 │   ├── auth_strategies.py       # Built-in auth strategies (RSA JWT, ...)
-│   ├── security.py              # JWT helpers: get_user_id(), get_group_id()
+│   ├── security.py              # JWT helpers: get_user_id()
 │   └── engine/
 │       ├── models.py            # RouteConfig, GatewayConfig, ProxyConfig, ...
 │       ├── context.py           # RouteContext, AccessResult
 │       ├── registry.py          # ServiceRegistry, handler registries + decorators
 │       ├── loader.py            # YAML parser → GatewayConfig
-│       ├── pipeline.py          # Auth → Access → Execute → Transform
+│       ├── pipeline.py          # Auth → Access → Execute
 │       ├── proxy.py             # HTTP proxy + parameter injection
 │       ├── bootstrap.py         # YAML → Blueprint → Flask
 │       └── status.py            # HTTP response helpers (ok, forbidden, ...)
@@ -374,7 +351,7 @@ pip install pytest
 python -m pytest tests/ -v
 ```
 
-All 15 tests pass in ~0.08s with no external dependencies or Docker.
+All 16 tests pass in ~0.08s with no external dependencies or Docker.
 
 ---
 
@@ -397,3 +374,15 @@ docker run -p 5000:5000 \
 - **Zero business logic** — the engine has no built-in domain code; all handlers are yours
 - **Lightweight** — pure Flask, no heavy frameworks, no Docker required for development
 - **Testable** — unit tests run in milliseconds without infrastructure
+
+---
+
+## Migrating from TDN
+
+If you are migrating from TheDungeonNotebook's API Gateway, note the following differences:
+
+- **`_sanitize_user_params` is removed.** In TDN, a `before_request` hook stripped `userId` and `access` from query parameters. PyApiGate does not do this — if you need similar behaviour, add your own `before_request` handler.
+- **Auto-import of `handlers/` is removed.** You must explicitly import your handlers package before calling `create_app()`.
+- **`base_path` default is now `""`** (previously `"/v2"`).
+- **`access` field is now a string only** (dictionary per-method access is no longer supported; use the multi-method YAML format instead).
+- **`ResponseTransform` and `ResponseConfig` are removed.** Use response handlers for any custom response logic.

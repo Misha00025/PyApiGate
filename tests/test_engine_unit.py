@@ -1,13 +1,13 @@
 """
-Unit-тесты для PyApiGate engine.
-Не требуют поднятия Flask или Docker.
+Unit tests for PyApiGate engine.
+Does not require Flask or Docker.
 """
 
 import pytest
 from flask import Flask
 from app.engine.models import (
     AuthConfig, RouteConfig, ProxyConfig, ParamsConfig,
-    GatewayConfig, ServiceConfig, RouteType
+    GatewayConfig, ServiceConfig,
 )
 from app.engine.context import RouteContext, AccessResult
 from app.engine.registry import (
@@ -26,28 +26,13 @@ def app_ctx():
 
 
 class TestModels:
-    def test_route_type_proxy(self):
-        route = RouteConfig(path="/test", proxy=ProxyConfig(service="srv", path="/test"))
-        assert route.route_type == RouteType.PROXY
-
-    def test_route_type_handler(self):
-        route = RouteConfig(path="/test", handler="my_handler")
-        assert route.route_type == RouteType.HANDLER
-
     def test_get_access_handler_string(self):
         route = RouteConfig(path="/test", access="group_member")
-        assert route.get_access_handler("GET") == "group_member"
-        assert route.get_access_handler("POST") == "group_member"
-
-    def test_get_access_handler_dict(self):
-        route = RouteConfig(path="/test", access={"GET": "reader", "POST": "writer"})
-        assert route.get_access_handler("GET") == "reader"
-        assert route.get_access_handler("POST") == "writer"
-        assert route.get_access_handler("DELETE") is None
+        assert route.access == "group_member"
 
     def test_get_access_handler_none(self):
         route = RouteConfig(path="/test")
-        assert route.get_access_handler("GET") is None
+        assert route.access is None
 
 
 class TestContext:
@@ -117,6 +102,10 @@ class TestAuthConfig:
         assert config.auth.strategy == "none"
         assert config.auth.public_key_path is None
         assert config.auth.expected_issuer is None
+
+    def test_default_base_path_empty(self):
+        config = GatewayConfig()
+        assert config.base_path == ""
 
     def test_auth_registry_rsa_jwt_registered(self):
         import app.auth_strategies  # noqa: F401 — triggers @register_auth_strategy

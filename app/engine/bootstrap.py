@@ -1,8 +1,7 @@
 """
-Bootstrap — загрузка YAML-конфигурации и регистрация маршрутов во Flask.
+Bootstrap — load YAML config and register routes in Flask.
 
-Создаёт Blueprint с маршрутами из конфига, регистрирует его в Flask-приложении.
-Использует префикс /v2/ для параллельной работы со старыми @route-декораторами.
+Creates a Blueprint with routes from config, registers it in the Flask app.
 """
 
 from __future__ import annotations
@@ -16,39 +15,28 @@ from app.engine.context import RouteContext
 from app.engine.loader import load_config
 from app.engine.models import GatewayConfig, RouteConfig
 from app.engine.pipeline import execute_pipeline
-from app.engine.registry import ServiceRegistry
+from app.engine.registry import ServiceRegistry, auth_strategy_registry
 
 
 def bootstrap(
     flask_app: Flask,
     config_path: Optional[str] = None,
-    import_handlers: bool = True,
 ) -> GatewayConfig:
     """
-    Загружает конфигурацию и регистрирует маршруты в Flask-приложении.
+    Loads config and registers routes in the Flask application.
 
     Args:
-        flask_app: Flask-приложение.
-        config_path: Путь к YAML-файлу. Если None — ищет routes.yaml в корне сервиса.
-        import_handlers: Автоматически импортировать хендлеры.
+        flask_app: Flask application.
+        config_path: Path to YAML file. If None — looks for routes.yaml in the service root.
 
     Returns:
-        GatewayConfig — загруженная конфигурация.
+        GatewayConfig — loaded configuration.
     """
-    # Загружаем конфиг
+    # Load config
     config = load_config(config_path)
     print(f"[Engine] Loaded {len(config.routes)} routes from config")
 
-    # Импортируем хендлеры (чтобы декораторы сработали)
-    if import_handlers:
-        try:
-            import handlers  # noqa: F401
-            print("[Engine] Handlers imported from handlers/ directory")
-        except ImportError as e:
-            print(f"[Engine] Warning: handlers not available: {e}")
-
-    # Создаём auth strategy из конфига
-    from app.engine.registry import auth_strategy_registry
+    # Create auth strategy from config
 
     if config.auth.strategy and config.auth.strategy != "none":
         strategy = auth_strategy_registry.create(config.auth.strategy, config.auth)
@@ -59,7 +47,7 @@ def bootstrap(
     else:
         strategy = None
 
-    # Создаём ServiceRegistry
+    # Create ServiceRegistry
     services_dict = {}
     for name, svc in config.services.items():
         services_dict[name] = {
@@ -69,15 +57,15 @@ def bootstrap(
     registry = ServiceRegistry(services_dict)
     print(f"[Engine] Registered services: {list(services_dict.keys())}")
 
-    # Создаём Blueprint
+    # Create Blueprint
     bp_name = "engine_api"
     bp = Blueprint(bp_name, __name__, url_prefix=config.base_path or None)
 
-    # Регистрируем каждый маршрут
+    # Register each route
     for route in config.routes:
         _register_route(bp, route, registry, strategy)
 
-    # Регистрируем Blueprint в приложении
+    # Register Blueprint in the app
     flask_app.register_blueprint(bp)
     print(f"[Engine] Blueprint '{bp_name}' registered at '{config.base_path or '/'}'")
 
@@ -90,7 +78,7 @@ def _register_route(
     registry: ServiceRegistry,
     auth_strategy: Optional[Callable] = None,
 ) -> None:
-    """Регистрирует один маршрут в Blueprint."""
+    """Registers a single route in the Blueprint."""
 
     def make_view_func(rc: RouteConfig, reg: ServiceRegistry, auth: Optional[Callable]):
         def view_func(**path_params):

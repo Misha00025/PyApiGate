@@ -1,132 +1,101 @@
 """
-Модели данных для декларативного API Gateway.
+Data models for the declarative API Gateway.
 
-Содержит dataclass'ы для представления маршрутов, прокси-конфигурации,
-параметров и сервисов.
+Contains dataclasses for routes, proxy configuration,
+parameters, and services.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 
-class RouteType(Enum):
-    """Тип маршрута: прокси в бэкенд или кастомный response-хендлер."""
-    PROXY = "proxy"
-    HANDLER = "handler"
+AuthStrategy = Callable[["RouteContext"], Optional[dict]]
 
 
 @dataclass
 class ProxyConfig:
-    """Настройки проксирования запроса в бэкенд-сервис."""
+    """Proxy request settings to a backend service."""
     service: str
-    """Имя сервиса из секции services."""
+    """Service name from the services section."""
     path: str
-    """Целевой путь в бэкенд-сервисе (может содержать {placeholders})."""
+    """Target path in the backend service (may contain {placeholders})."""
     skip_body: bool = False
-    """Не передавать тело запроса (например, для PUT без тела)."""
+    """Do not forward the request body (e.g. for PUT without body)."""
     headers: dict[str, str] = field(default_factory=dict)
-    """Дополнительные заголовки для прокси-запроса."""
+    """Extra headers for the proxy request."""
 
 
 @dataclass
 class ParamsConfig:
-    """Настройки подстановки параметров в запрос к бэкенду."""
+    """Parameter injection settings for backend requests."""
     query: Optional[dict[str, str] | str] = None
     """
-    Параметры для query-строки.
-    Может быть:
-    - "*" — форвард всех входящих query-параметров + userId из JWT
-    - {"dest": "source"} — маппинг параметров
-      source формата: "{jwt.field}", "{path.field}", "{query.field}" или литерал
+    Query string parameters.
+    Can be:
+    - "*" — forward all incoming query params + userId from JWT
+    - {"dest": "source"} — parameter mapping
+      source format: "{jwt.field}", "{path.field}", "{query.field}" or literal
     """
     body: Optional[dict[str, str]] = None
     """
-    Параметры для JSON-тела запроса (body injection).
-    {"dest": "{jwt.userId}"} — вставит userId из JWT в тело.
+    JSON body parameters (body injection).
+    {"dest": "{jwt.userId}"} — inserts userId from JWT into body.
     """
-
-
-@dataclass
-class ResponseConfig:
-    """Трансформация ответа перед отправкой клиенту."""
-    wrap: Optional[str] = None
-    """Обернуть JSON-ответ в {"key": <data>} (built-in трансформер)."""
-    handler: Optional[str] = None
-    """Имя кастомного response-трансформера (зарегистрированного через декоратор)."""
 
 
 @dataclass
 class RouteConfig:
-    """Конфигурация одного маршрута."""
+    """Configuration for a single route."""
     path: str
-    """Flask-совместимый путь (например, /groups/<int:group_id>/items)."""
+    """Flask-compatible path (e.g. /users/<int:user_id>/items)."""
     methods: list[str] = field(default_factory=lambda: ["GET"])
-    """HTTP-методы, которые обслуживает этот маршрут."""
+    """HTTP methods served by this route."""
     auth: str = "required"
-    """Требование авторизации: "none" или "required"."""
-    access: Optional[str | dict[str, str]] = None
+    """Authorization requirement: "none" or "required"."""
+    access: Optional[str] = None
     """
-    Имя access-хендлера для проверки прав доступа.
-    Может быть строкой (для всех методов) или словарём {method: handler_name}.
+    Access handler name for permission checks.
     """
     proxy: Optional[ProxyConfig] = None
-    """Конфигурация прокси (если тип маршрута — PROXY)."""
+    """Proxy configuration (if the route type is PROXY)."""
     handler: Optional[str] = None
-    """Имя response-хендлера (если тип маршрута — HANDLER)."""
+    """Response handler name (if the route type is HANDLER)."""
     params: Optional[ParamsConfig] = None
-    """Настройки подстановки параметров."""
-    response: Optional[ResponseConfig] = None
-    """Трансформация ответа перед отправкой клиенту."""
+    """Parameter injection settings."""
     description: Optional[str] = None
-    """Описание маршрута (для документации)."""
-
-    @property
-    def route_type(self) -> RouteType:
-        """Определяет тип маршрута на основе настроек."""
-        if self.handler:
-            return RouteType.HANDLER
-        return RouteType.PROXY
-
-    def get_access_handler(self, method: str) -> Optional[str]:
-        """Возвращает имя access-хендлера для указанного HTTP-метода."""
-        if self.access is None:
-            return None
-        if isinstance(self.access, str):
-            return self.access
-        return self.access.get(method)
+    """Route description (for documentation)."""
 
 
 @dataclass
 class ServiceConfig:
-    """Конфигурация бэкенд-сервиса."""
+    """Backend service configuration."""
     base_url: str
-    """Базовый URL сервиса (например, http://campaign-service:8080)."""
+    """Base URL of the service (e.g. http://my-api:8000)."""
     timeout: int = 30
-    """Таймаут HTTP-запроса в секундах."""
+    """HTTP request timeout in seconds."""
 
 
 @dataclass
 class AuthConfig:
-    """Конфигурация стратегии аутентификации из YAML."""
+    """Auth strategy configuration from YAML."""
     strategy: str = "none"
-    """Имя стратегии (rsa_jwt, none, или кастомная)."""
+    """Strategy name (rsa_jwt, none, or custom)."""
     public_key_path: Optional[str] = None
-    """Путь к RSA public key PEM-файлу (для rsa_jwt)."""
+    """Path to RSA public key PEM file (for rsa_jwt)."""
     expected_issuer: Optional[str] = None
-    """Ожидаемый iss claim в JWT (опционально)."""
+    """Expected iss claim in JWT (optional)."""
 
 
 @dataclass
 class GatewayConfig:
-    """Корневая конфигурация API Gateway."""
-    base_path: str = "/v2"
-    """Префикс URL для всех маршрутов (например, /v2 или пустая строка /)."""
+    """Root configuration of the API Gateway."""
+    base_path: str = ""
+    """URL prefix for all routes (e.g. /v2 or empty string /)."""
     auth: AuthConfig = field(default_factory=AuthConfig)
-    """Конфигурация стратегии аутентификации."""
+    """Auth strategy configuration."""
     services: dict[str, ServiceConfig] = field(default_factory=dict)
-    """Словарь бэкенд-сервисов {имя: конфиг}."""
+    """Backend services dict {name: config}."""
     routes: list[RouteConfig] = field(default_factory=list)
-    """Список маршрутов."""
+    """List of routes."""

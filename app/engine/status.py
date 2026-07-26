@@ -76,5 +76,5 @@ def conflict(response=None):
 
 
 def bad_gateway(response=None):
-    """502 Bad Gateway — ошибка при обращении к вышестоящему сервису."""
+    """502 Bad Gateway — error when calling an upstream service."""
     return answer(502, response)

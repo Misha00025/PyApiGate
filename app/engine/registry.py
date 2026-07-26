@@ -1,20 +1,19 @@
 """
-Реестры для декларативного API Gateway.
+Registries for the declarative API Gateway.
 
-Содержит:
-- ServiceRegistry и ServiceClient — HTTP-клиенты для бэкенд-сервисов
-- AccessHandlerRegistry — реестр access-хендлеров (проверка прав)
-- ResponseHandlerRegistry — реестр response-хендлеров (кастомные ответы)
+Contains:
+- ServiceRegistry and ServiceClient — HTTP clients for backend services
+- Registry — generic registry for pluggable components (access handlers, response handlers, auth strategies)
 """
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 import requests
 
 
 class ServiceClient:
-    """HTTP-клиент для одного бэкенд-сервиса."""
+    """HTTP client for a single backend service."""
 
     def __init__(self, base_url: str, timeout: int = 30):
         self.base_url = base_url.rstrip("/")
@@ -47,10 +46,10 @@ class ServiceClient:
 
 class ServiceRegistry:
     """
-    Реестр HTTP-клиентов для бэкенд-сервисов.
+    Registry of HTTP clients for backend services.
 
-    Позволяет обращаться к сервисам через атрибуты:
-    ctx.services.campaign.get("/groups/1")
+    Allows access to services via attributes:
+    ctx.services.users.get("/profiles/1")
     """
 
     def __init__(self, services: dict[str, dict]):
@@ -69,117 +68,49 @@ class ServiceRegistry:
         return self._services[name]
 
     def get_client(self, name: str) -> Optional[ServiceClient]:
-        """Получить клиент сервиса по имени (без исключения)."""
+        """Get a service client by name (no exception)."""
         return self._services.get(name)
 
 
-class AccessHandlerRegistry:
+class Registry:
     """
-    Реестр access-хендлеров.
+    Generic registry for pluggable components.
 
-    Хендлеры регистрируются через декоратор @register_access_handler("name").
+    Supports registering components via decorator and retrieving by name.
     """
 
     def __init__(self):
-        self._handlers: dict[str, Callable] = {}
+        self._items: dict[str, Callable] = {}
 
     def register(self, name: str):
-        """Декоратор для регистрации access-хендлера."""
+        """Decorator to register a component."""
         def decorator(fn):
-            self._handlers[name] = fn
+            self._items[name] = fn
             return fn
         return decorator
 
     def get(self, name: str) -> Optional[Callable]:
-        """Получить access-хендлер по имени."""
-        return self._handlers.get(name)
+        """Get a component by name."""
+        return self._items.get(name)
 
     def has(self, name: str) -> bool:
-        """Проверить, зарегистрирован ли хендлер с таким именем."""
-        return name in self._handlers
-
-
-class ResponseHandlerRegistry:
-    """
-    Реестр response-хендлеров (кастомные обработчики, не прокси).
-
-    Хендлеры регистрируются через декоратор @register_response_handler("name").
-    """
-
-    def __init__(self):
-        self._handlers: dict[str, Callable] = {}
-
-    def register(self, name: str):
-        """Декоратор для регистрации response-хендлера."""
-        def decorator(fn):
-            self._handlers[name] = fn
-            return fn
-        return decorator
-
-    def get(self, name: str) -> Optional[Callable]:
-        """Получить response-хендлер по имени."""
-        return self._handlers.get(name)
-
-
-class ResponseTransformRegistry:
-    """
-    Реестр response-трансформеров.
-
-    Трансформер получает данные ответа от бэкенда и возвращает
-    трансформированные данные. Может также использовать ctx
-    для доступа к JWT, параметрам запроса и т.д.
-
-    Сигнатура: transform(data: Any, ctx: RouteContext) -> Any
-    """
-
-    def __init__(self):
-        self._transforms: dict[str, Callable] = {}
-
-    def register(self, name: str):
-        """Декоратор для регистрации response-трансформера."""
-        def decorator(fn):
-            self._transforms[name] = fn
-            return fn
-        return decorator
-
-    def get(self, name: str) -> Optional[Callable]:
-        """Получить трансформер по имени."""
-        return self._transforms.get(name)
-
-
-class AuthStrategyRegistry:
-    """
-    Реестр фабрик auth-стратегий.
-    Фабрика получает AuthConfig и возвращает AuthStrategy.
-    """
-
-    def __init__(self):
-        self._factories: dict[str, Callable] = {}
-
-    def register(self, name: str):
-        def decorator(fn):
-            self._factories[name] = fn
-            return fn
-        return decorator
+        """Check if a component with this name is registered."""
+        return name in self._items
 
     def create(self, name: str, config: Any) -> Optional[Callable]:
-        factory = self._factories.get(name)
+        """For auth strategies: create an instance from a factory."""
+        factory = self._items.get(name)
         if factory is None:
             return None
         return factory(config)
 
-    def has(self, name: str) -> bool:
-        return name in self._factories
 
+# Global registry instances
+access_handler_registry = Registry()
+response_handler_registry = Registry()
+auth_strategy_registry = Registry()
 
-# Глобальные экземпляры реестров
-access_handler_registry = AccessHandlerRegistry()
-response_handler_registry = ResponseHandlerRegistry()
-response_transform_registry = ResponseTransformRegistry()
-auth_strategy_registry = AuthStrategyRegistry()
-
-# Декораторы для удобного импорта
+# Convenience decorators
 register_access_handler = access_handler_registry.register
 register_response_handler = response_handler_registry.register
-register_response_transform = response_transform_registry.register
 register_auth_strategy = auth_strategy_registry.register
