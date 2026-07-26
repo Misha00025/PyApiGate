@@ -1,0 +1,403 @@
+# PyApiGate
+
+**Declarative YAML-driven API Gateway for Flask.**
+
+Define your routes, access control, and proxy rules in a single YAML file — PyApiGate creates Flask endpoints, validates JWT tokens, calls your access/response handlers, and proxies requests to backend services.
+
+```yaml
+# routes.yaml
+services:
+  users: { base_url: "http://users-api:8000" }
+
+routes:
+  - path: /users/{id}
+    methods: [GET, PUT]
+    proxy:
+      service: users
+      path: /users/{id}
+    auth: required
+    access:
+      GET: everyone
+      PUT: owner_only
+```
+
+---
+
+## Quick Start
+
+```bash
+pip install -r req.txt
+python main.py
+```
+
+This starts the gateway on `:5000` with `routes.example.yaml`. No auth checks (no JWT key loaded).
+
+---
+
+## Your First Route
+
+### 1. Create `routes.yaml`
+
+```yaml
+base_path: ""
+
+services:
+  my_api:
+    base_url: "http://localhost:8080"
+
+routes:
+  - path: /hello
+    methods: [GET]
+    handler: hello_handler
+    auth: none
+```
+
+### 2. Write a handler
+
+```python
+# handlers/hello.py
+from app.engine.registry import register_response_handler
+from app.engine.status import ok
+
+@register_response_handler("hello_handler")
+def hello_handler(ctx):
+    return ok({"message": "Hello from PyApiGate!"})
+```
+
+Any `.py` file placed in a `handlers/` directory next to your app is auto-imported at startup.
+
+### 3. Run
+
+```bash
+python main.py
+curl http://localhost:5000/hello
+# {"status": "OK", "message": "Hello from PyApiGate!"}
+```
+
+---
+
+## Route Configuration (routes.yaml)
+
+### Basics
+
+```yaml
+base_path: ""                    # URL prefix for all routes (e.g. /v2)
+
+services:                        # Backend services to proxy to
+  users:  { base_url: "http://users:8000" }
+  orders: { base_url: "http://orders:8000" }
+
+routes:                          # Route definitions
+  - path: /hello
+    methods: [GET]
+    handler: hello_handler
+    auth: none
+```
+
+### Proxy Route
+
+Forward requests directly to a backend service:
+
+```yaml
+- path: /groups/{group_id}/items
+  methods: [GET, POST]
+  proxy:
+    service: users              # name from services section
+    path: /groups/{group_id}/items   # target path (supports {placeholders})
+  auth: required
+  access:
+    GET: group_member
+    POST: group_admin
+```
+
+### Handler Route
+
+Custom logic orchestrated by your code:
+
+```yaml
+- path: /users/me
+  methods: [GET]
+  handler: whoami
+  auth: required
+```
+
+### Multi-Method Format
+
+Per-method configuration:
+
+```yaml
+- path: /groups/{group_id}
+  methods:
+    GET:
+      proxy:
+        service: campaign
+        path: /groups/{group_id}
+      auth: required
+    PATCH:
+      proxy:
+        service: campaign
+        path: /groups/{group_id}
+      auth: required
+      access: group_admin
+```
+
+### Fields Reference
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | — | Flask route path (e.g. `/users/<int:id>`) |
+| `methods` | list/dict | `[GET]` | HTTP methods |
+| `auth` | `"required"` / `"none"` | `"required"` | Whether JWT is required |
+| `access` | string/dict | `null` | Access handler name(s) |
+| `proxy` | object | `null` | Proxy config (see below) |
+| `handler` | string | `null` | Response handler name |
+| `params` | object | `null` | Parameter injection config |
+| `response` | object | `null` | Response transform config |
+| `description` | string | `null` | Human-readable description |
+
+**Proxy config:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `service` | string | — | Backend service name |
+| `path` | string | same as route | Target path with `{placeholder}` substitution |
+| `skip_body` | bool | `false` | Don't forward the request body |
+| `headers` | dict | `{}` | Extra headers for the proxied request |
+
+---
+
+## Writing Handlers
+
+### Access Handlers (permission checks)
+
+```python
+from app.engine.registry import register_access_handler
+from app.engine.context import RouteContext
+
+@register_access_handler("admin_only")
+def check_admin(ctx: RouteContext):
+    if ctx.jwt and ctx.jwt.get("role") == "admin":
+        return ctx.allow()
+    return ctx.deny()
+```
+
+### Response Handlers (custom responses)
+
+```python
+from app.engine.registry import register_response_handler
+from app.engine.status import ok, created, not_found
+
+@register_response_handler("get_user_profile")
+def handle_profile(ctx):
+    user_id = ctx.path_params.get("user_id")
+    resp = ctx.services.users.get(f"/profiles/{user_id}")
+    if resp.status_code == 404:
+        return not_found("User not found")
+    return ok(resp.json())
+```
+
+### Handler Conventions
+
+- All `.py` files in a `handlers/` directory are auto-imported when the app starts.
+- Handlers receive a `RouteContext` with access to request, JWT, path params, and backend services.
+- Access handlers return `ctx.allow()` or `ctx.deny()`.
+- Response handlers return a Flask `Response` (use helpers from `app.engine.status`).
+
+---
+
+## RouteContext
+
+The context object passed to every handler:
+
+```python
+ctx.request         # Flask Request object
+ctx.path_params     # URL parameters (e.g. {"group_id": "123"})
+ctx.jwt             # Decoded JWT payload (dict) or None
+ctx.services        # ServiceRegistry — HTTP clients for backends
+ctx.state           # Mutable dict to pass data between pipeline stages
+
+# Built-in helpers
+ctx.allow()         # -> AccessResult(allowed=True)
+ctx.deny(response)  # -> AccessResult(allowed=False, response=response)
+ctx.deny()          # -> 403 Forbidden
+```
+
+---
+
+## Auth Strategy
+
+PyApiGate decouples authentication via **AuthStrategy** — a function that decides whether a request is authenticated:
+
+```python
+AuthStrategy = Callable[[RouteContext], Optional[dict]]
+# Returns:
+#   dict  -> JWT payload (authenticated)
+#   None  -> 401 Unauthorized
+```
+
+### Built-in: RSA JWT
+
+```python
+from app import create_app
+from app.auth_strategies import rsa_jwt_auth_strategy
+
+with open("public.pem", "rb") as f:
+    public_key = f.read()
+
+auth = rsa_jwt_auth_strategy(public_key, oidc_issuer="https://auth.example.com")
+app = create_app(auth_strategy=auth)
+```
+
+### Custom: API Key
+
+```python
+def api_key_strategy(ctx):
+    api_key = ctx.request.headers.get("X-API-Key")
+    if api_key == "my-secret-key":
+        return {"userId": "service-account", "role": "admin"}
+    return None
+
+app = create_app(auth_strategy=api_key_strategy)
+```
+
+### No Auth
+
+```python
+app = create_app()  # auth_strategy defaults to None — routes with auth: required will 501
+```
+
+---
+
+## Parameter Injection
+
+Inject values from JWT, path, or query into proxied requests:
+
+```yaml
+params:
+  query:
+    userId: "{jwt.userId}"       # from JWT payload
+    groupId: "{path.group_id}"   # from URL parameter
+    "*": query                   # forward all other query params as-is
+  body:
+    owner_id: "{jwt.userId}"     # inject into JSON body
+```
+
+Shorthand `params.query: "*"` forwards all incoming query parameters plus `userId` from JWT.
+
+---
+
+## Response Transform
+
+Modify proxy responses before sending to the client:
+
+```yaml
+response:
+  wrap: data           # wrap response in {"data": <original>}
+  handler: my_transform  # custom transform function
+```
+
+Custom transform:
+
+```python
+from app.engine.registry import register_response_transform
+
+@register_response_transform("my_transform")
+def transform(data, ctx):
+    return {"results": data, "page": 1}
+```
+
+---
+
+## ServiceRegistry
+
+Access backend services from response handlers:
+
+```python
+# Define in routes.yaml:
+# services:
+#   users:  { base_url: "http://users-api:8000" }
+#   orders: { base_url: "http://orders-api:8000" }
+
+# In your handler:
+resp = ctx.services.users.get("/profiles/42")
+resp = ctx.services.orders.post("/checkout", json={"cart": [...]})
+```
+
+Available methods: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`, `.request()`.
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PUBLIC_KEY_PATH` | Path to RSA public key PEM file | `public.pem` |
+| `OIDC_ISSUER` | Optional OIDC issuer for `iss` claim check | — |
+| `CONFIG_PATH` | Path to routes.yaml | `routes.yaml` |
+
+Services in `routes.yaml` support `${ENV_VAR}` and `${ENV_VAR:-default}` substitution.
+
+---
+
+## Project Structure
+
+```
+PyApiGate/
+├── app/
+│   ├── __init__.py              # create_app() — Flask app factory
+│   ├── auth_strategies.py       # Built-in auth strategies (RSA JWT, ...)
+│   ├── security.py              # JWT helpers: get_user_id(), get_group_id()
+│   └── engine/
+│       ├── models.py            # RouteConfig, GatewayConfig, ProxyConfig, ...
+│       ├── context.py           # RouteContext, AccessResult
+│       ├── registry.py          # ServiceRegistry, handler registries + decorators
+│       ├── loader.py            # YAML parser → GatewayConfig
+│       ├── pipeline.py          # Auth → Access → Execute → Transform
+│       ├── proxy.py             # HTTP proxy + parameter injection
+│       ├── bootstrap.py         # YAML → Blueprint → Flask
+│       └── status.py            # HTTP response helpers (ok, forbidden, ...)
+├── main.py                      # Dev server
+├── wsgi.py                      # Gunicorn entrypoint
+├── Dockerfile
+├── req.txt
+├── routes.example.yaml          # Template config
+└── tests/
+    ├── conftest.py
+    ├── test_routes.yaml
+    ├── test_engine_unit.py
+    └── test_handlers.py
+```
+
+---
+
+## Running Tests
+
+```bash
+pip install pytest
+python -m pytest tests/ -v
+```
+
+All 15 tests pass in ~0.08s with no external dependencies or Docker.
+
+---
+
+## Docker
+
+```bash
+docker build -t pyapi-gate .
+docker run -p 5000:5000 \
+  -v /path/to/routes.yaml:/app/routes.yaml \
+  -v /path/to/public.pem:/app/public.pem \
+  -e CONFIG_PATH=/app/routes.yaml \
+  pyapi-gate
+```
+
+---
+
+## Why PyApiGate?
+
+- **Declarative** — routes, auth, access, and proxy rules in one YAML file
+- **Pluggable auth** — swap RSA JWT for API keys, OIDC, or anything else via AuthStrategy
+- **Zero business logic** — the engine has no built-in domain code; all handlers are yours
+- **Lightweight** — pure Flask, no heavy frameworks, no Docker required for development
+- **Testable** — unit tests run in milliseconds without infrastructure

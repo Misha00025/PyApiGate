@@ -1,0 +1,10 @@
+base_path: ""
+services:
+  example:
+    base_url: "http://localhost:18080"
+
+routes:
+  - path: /hello
+    methods: [GET]
+    handler: hello_handler
+    auth: none

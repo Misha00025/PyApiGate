@@ -1,0 +1,48 @@
+# Пример конфигурации PyApiGate
+# Скопируйте в routes.yaml и отредактируйте под свои нужды
+base_path: ""
+
+services:
+  example:
+    base_url: "http://localhost:18080"
+  auth:
+    base_url: "http://auth-service:8080"
+
+routes:
+  # 1. Response handler (без прокси)
+  - path: /hello
+    methods: [GET]
+    handler: hello_handler
+    auth: none
+    description: "Простой hello-world хендлер"
+
+  # 2. Прокси в бэкенд-сервис
+  - path: /api/users/<int:user_id>
+    methods: [GET, PUT]
+    proxy:
+      service: example
+      path: /users/{user_id}
+    params:
+      query: "*"
+    response:
+      wrap: data
+    description: "Прокси к example-сервису"
+
+  # 3. Прокси с access-контролем и body-injection
+  - path: /api/groups/<int:group_id>/items
+    methods:
+      GET:
+        proxy:
+          service: example
+          path: /groups/{group_id}/items
+        access: reader
+      POST:
+        proxy:
+          service: example
+          path: /groups/{group_id}/items
+        access: writer
+        params:
+          body:
+            ownerId: "{jwt.userId}"
+    auth: required
+    description: "CRUD для items с проверкой прав"
