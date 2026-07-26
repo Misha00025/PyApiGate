@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from flask import Response as FlaskResponse
+from starlette.responses import Response
 
 from app.engine.context import RouteContext
 from app.engine.models import AuthStrategy, RouteConfig
@@ -28,7 +28,7 @@ def execute_pipeline(
     route: RouteConfig,
     ctx: RouteContext,
     auth_strategy: AuthStrategy = None,
-) -> FlaskResponse:
+    ) -> Response:
     """
     Executes the full request processing pipeline.
 

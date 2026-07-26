@@ -4,7 +4,6 @@ Does not require Flask or Docker.
 """
 
 import pytest
-from flask import Flask
 from app.engine.models import (
     AuthConfig, RouteConfig, ProxyConfig, ParamsConfig,
     GatewayConfig, ServiceConfig,
@@ -16,13 +15,6 @@ from app.engine.registry import (
     register_access_handler, register_response_handler,
 )
 from app.engine.status import ok, forbidden, unauthorized
-
-
-@pytest.fixture
-def app_ctx():
-    app = Flask(__name__)
-    with app.app_context():
-        yield
 
 
 class TestModels:
@@ -83,17 +75,17 @@ class TestRegistry:
 
 
 class TestStatus:
-    def test_ok(self, app_ctx):
-        resp, code = ok({"data": "test"})
-        assert code == 200
+    def test_ok(self):
+        resp = ok({"data": "test"})
+        assert resp.status_code == 200
 
-    def test_forbidden(self, app_ctx):
-        resp, code = forbidden()
-        assert code == 403
+    def test_forbidden(self):
+        resp = forbidden()
+        assert resp.status_code == 403
 
-    def test_unauthorized(self, app_ctx):
-        resp, code = unauthorized()
-        assert code == 401
+    def test_unauthorized(self):
+        resp = unauthorized()
+        assert resp.status_code == 401
 
 
 class TestAuthConfig:

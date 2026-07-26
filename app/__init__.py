@@ -1,30 +1,26 @@
 """
-Flask app factory for PyApiGate.
+FastAPI app factory for PyApiGate.
 """
 from __future__ import annotations
 
-import os
 from typing import Optional
 
-from flask import Flask
+from fastapi import FastAPI
 
 
 def create_app(
     config_path: Optional[str] = None,
-) -> Flask:
+) -> FastAPI:
     """
-    Creates and configures a Flask application with the declarative engine.
+    Creates and configures a FastAPI application with the declarative engine.
 
     Args:
         config_path: Path to routes.yaml. If None — looks for routes.yaml in CWD.
 
     Returns:
-        Configured Flask application.
+        Configured FastAPI application.
     """
-    application = Flask(__name__)
-
-    from flask import json
-    json.provider.DefaultJSONProvider.ensure_ascii = False
+    application = FastAPI(title="PyApiGate")
 
     from app.engine.bootstrap import bootstrap
     config = bootstrap(

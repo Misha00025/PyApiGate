@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from flask import Request
+from fastapi import Request
 
 
 class AccessResult:

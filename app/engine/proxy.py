@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from flask import Response as FlaskResponse
+from fastapi.responses import JSONResponse
+from starlette.responses import Response
 import requests as http_requests
 
 from app.engine.context import RouteContext
@@ -18,7 +19,7 @@ from app.engine.status import bad_gateway, not_implemented
 from app.security import get_user_id
 
 
-def execute_proxy(route: RouteConfig, ctx: RouteContext) -> FlaskResponse:
+def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
     """
     Executes a proxy request to a backend service.
 
@@ -73,7 +74,7 @@ def execute_proxy(route: RouteConfig, ctx: RouteContext) -> FlaskResponse:
         return bad_gateway(f"Upstream error: {e}")
 
     # 5. Return the response
-    return _to_flask_response(resp)
+    return _to_response(resp)
 
 
 def _resolve_path(template: str, path_params: dict[str, Any]) -> str:
@@ -99,10 +100,10 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
     """Builds query parameters for the proxy request."""
     params_cfg = route.params
     if params_cfg is None or params_cfg.query is None:
-        return dict(ctx.request.args)
+        return dict(ctx.request.query_params)
 
     if params_cfg.query == "*":
-        result = dict(ctx.request.args)
+        result = dict(ctx.request.query_params)
         if ctx.jwt and get_user_id(ctx.jwt):
             result["userId"] = get_user_id(ctx.jwt)
         return result
@@ -111,23 +112,27 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
         result = {}
         for dest, source in params_cfg.query.items():
             if source == "*":
-                for k, v in ctx.request.args.items():
+                for k, v in ctx.request.query_params.items():
                     if k not in result:
                         result[k] = v
             else:
                 result[dest] = _resolve_source(source, ctx)
         return result
 
-    return dict(ctx.request.args)
+    return dict(ctx.request.query_params)
 
 
 def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
     """Builds the body for the proxy request (body injection)."""
     params_cfg = route.params
+    try:
+        json_body = ctx.request.json()
+    except Exception:
+        json_body = None
     if params_cfg is None or params_cfg.body is None:
-        return ctx.request.get_json(silent=True)
+        return json_body
 
-    body = ctx.request.get_json(silent=True) or {}
+    body = json_body or {}
     for dest, source in params_cfg.body.items():
         body[dest] = _resolve_source(source, ctx)
     return body
@@ -155,23 +160,20 @@ def _resolve_source(expr: str, ctx: RouteContext) -> Any:
             elif source == "path":
                 return ctx.path_params.get(key)
             elif source == "query":
-                return ctx.request.args.get(key)
+                return ctx.request.query_params.get(key)
     return expr
 
 
-def _to_flask_response(resp: http_requests.Response) -> FlaskResponse:
-    """Converts a requests.Response to a Flask Response."""
+def _to_response(resp: http_requests.Response) -> Response:
+    """Converts a requests.Response to a Starlette Response."""
     content_type = resp.headers.get("Content-Type", "application/json")
 
     try:
         data = resp.json()
-        from flask import jsonify
-        response = jsonify(data)
-        response.status_code = resp.status_code
-        return response
+        return JSONResponse(content=data, status_code=resp.status_code)
     except (ValueError, TypeError):
-        return FlaskResponse(
-            response=resp.content,
-            status=resp.status_code,
-            content_type=content_type,
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type=content_type,
         )

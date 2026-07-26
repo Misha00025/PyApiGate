@@ -1,4 +1,4 @@
-from flask import jsonify
+from fastapi.responses import JSONResponse
 
 
 _status = "status"
@@ -36,7 +36,7 @@ def answer(code, response=None):
         response = {_error: response}
     if response is None:
         response = _default_status(code)
-    return jsonify(response), code
+    return JSONResponse(content=response, status_code=code)
 
 
 def ok(response=None):

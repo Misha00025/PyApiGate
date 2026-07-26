@@ -1,7 +1,8 @@
 """
-Dev server for PyApiGate.
+Dev server for PyApiGate (FastAPI).
 """
 import os
+import uvicorn
 from app import create_app
 
 app = create_app(
@@ -9,4 +10,4 @@ app = create_app(
 )
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)

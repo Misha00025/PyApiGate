@@ -1,8 +1,8 @@
 # PyApiGate
 
-**Declarative YAML-driven API Gateway for Flask.**
+**Declarative YAML-driven API Gateway for FastAPI.**
 
-Define your routes, access control, and proxy rules in a single YAML file — PyApiGate creates Flask endpoints, validates JWT tokens, calls your access/response handlers, and proxies requests to backend services.
+Define your routes, access control, and proxy rules in a single YAML file — PyApiGate creates FastAPI endpoints, validates JWT tokens, calls your access/response handlers, and proxies requests to backend services.
 
 ```yaml
 # routes.yaml
@@ -26,7 +26,7 @@ routes:
 ## Quick Start
 
 ```bash
-pip install -r req.txt
+pip install -r requirements.txt
 cp routes.example.yaml routes.yaml
 # настроить routes.yaml под себя
 python main.py
@@ -145,7 +145,7 @@ Per-method configuration:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `path` | string | — | Flask route path (e.g. `/users/<int:id>`) |
+| `path` | string | — | FastAPI route path (e.g. `/users/{id}`) |
 | `methods` | list/dict | `[GET]` | HTTP methods |
 | `auth` | `"required"` / `"none"` | `"required"` | Whether JWT is required |
 | `access` | string | `null` | Access handler name |
@@ -200,7 +200,7 @@ def handle_profile(ctx):
 - Create a `handlers/` package with an `__init__.py` that imports your handler modules, then import the package before calling `create_app()`.
 - Handlers receive a `RouteContext` with access to request, JWT, path params, and backend services.
 - Access handlers return `ctx.allow()` or `ctx.deny()`.
-- Response handlers return a Flask `Response` (use helpers from `app.engine.status`).
+- Response handlers return a FastAPI `Response` (use helpers from `app.engine.status`).
 
 ---
 
@@ -209,7 +209,7 @@ def handle_profile(ctx):
 The context object passed to every handler:
 
 ```python
-ctx.request         # Flask Request object
+ctx.request         # FastAPI Request object
 ctx.path_params     # URL parameters (e.g. {"group_id": "123"})
 ctx.jwt             # Decoded JWT payload (dict) or None
 ctx.services        # ServiceRegistry — HTTP clients for backends
@@ -257,7 +257,7 @@ auth:
   strategy: api_key
 ```
 
-`create_app()` now takes no auth parameters:
+`create_app()` returns a FastAPI application and takes no auth parameters:
 
 ```python
 from app import create_app
@@ -318,7 +318,7 @@ Services in `routes.yaml` support `${ENV_VAR}` and `${ENV_VAR:-default}` substit
 ```
 PyApiGate/
 ├── app/
-│   ├── __init__.py              # create_app() — Flask app factory
+│   ├── __init__.py              # create_app() — FastAPI app factory
 │   ├── auth_strategies.py       # Built-in auth strategies (RSA JWT, ...)
 │   ├── security.py              # JWT helpers: get_user_id()
 │   └── engine/
@@ -328,12 +328,12 @@ PyApiGate/
 │       ├── loader.py            # YAML parser → GatewayConfig
 │       ├── pipeline.py          # Auth → Access → Execute
 │       ├── proxy.py             # HTTP proxy + parameter injection
-│       ├── bootstrap.py         # YAML → Blueprint → Flask
+│       ├── bootstrap.py         # YAML → routes → FastAPI
 │       └── status.py            # HTTP response helpers (ok, forbidden, ...)
 ├── main.py                      # Dev server
-├── wsgi.py                      # Gunicorn entrypoint
+├── asgi.py                      # Uvicorn entrypoint
 ├── Dockerfile
-├── req.txt
+├── requirements.txt
 ├── routes.example.yaml          # Template config
 └── tests/
     ├── conftest.py
@@ -372,7 +372,7 @@ docker run -p 5000:5000 \
 - **Declarative** — routes, auth, access, and proxy rules in one YAML file
 - **Pluggable auth** — swap RSA JWT for API keys, OIDC, or anything else via AuthStrategy
 - **Zero business logic** — the engine has no built-in domain code; all handlers are yours
-- **Lightweight** — pure Flask, no heavy frameworks, no Docker required for development
+- **Lightweight** — pure FastAPI, no heavy frameworks, no Docker required for development
 - **Testable** — unit tests run in milliseconds without infrastructure
 
 ---

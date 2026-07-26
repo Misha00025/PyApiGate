@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from fastapi.testclient import TestClient
 from app import create_app
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -8,7 +9,7 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @pytest.fixture
 def app():
-    """Flask app without authentication for tests."""
+    """FastAPI app without authentication for tests."""
     application = create_app(
         config_path=os.path.join(TESTS_DIR, "test_routes.yaml"),
     )
@@ -17,4 +18,4 @@ def app():
 
 @pytest.fixture
 def client(app):
-    return app.test_client()
+    return TestClient(app)

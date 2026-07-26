@@ -1,15 +1,15 @@
 """
-Bootstrap — load YAML config and register routes in Flask.
+Bootstrap — load YAML config and register routes in FastAPI.
 
-Creates a Blueprint with routes from config, registers it in the Flask app.
+Creates an APIRouter with routes from config, registers it in the FastAPI app.
 """
 
 from __future__ import annotations
 
-import os
+import re
 from typing import Callable, Optional
 
-from flask import Blueprint, Flask, request as flask_request
+from fastapi import APIRouter, FastAPI, Request
 
 from app.engine.context import RouteContext
 from app.engine.loader import load_config
@@ -19,14 +19,14 @@ from app.engine.registry import ServiceRegistry, auth_strategy_registry
 
 
 def bootstrap(
-    flask_app: Flask,
+    app: FastAPI,
     config_path: Optional[str] = None,
 ) -> GatewayConfig:
     """
-    Loads config and registers routes in the Flask application.
+    Loads config and registers routes in the FastAPI application.
 
     Args:
-        flask_app: Flask application.
+        app: FastAPI application.
         config_path: Path to YAML file. If None — looks for routes.yaml in the service root.
 
     Returns:
@@ -57,34 +57,37 @@ def bootstrap(
     registry = ServiceRegistry(services_dict)
     print(f"[Engine] Registered services: {list(services_dict.keys())}")
 
-    # Create Blueprint
+    # Create APIRouter
     bp_name = "engine_api"
-    bp = Blueprint(bp_name, __name__, url_prefix=config.base_path or None)
+    router = APIRouter(prefix=config.base_path or "")
 
     # Register each route
     for route in config.routes:
-        _register_route(bp, route, registry, strategy)
+        _register_route(router, route, registry, strategy)
 
-    # Register Blueprint in the app
-    flask_app.register_blueprint(bp)
-    print(f"[Engine] Blueprint '{bp_name}' registered at '{config.base_path or '/'}'")
+    # Register router in the app
+    app.include_router(router)
+    print(f"[Engine] Router '{bp_name}' registered at '{config.base_path or '/'}'")
 
     return config
 
 
 def _register_route(
-    bp: Blueprint,
+    router: APIRouter,
     route: RouteConfig,
     registry: ServiceRegistry,
     auth_strategy: Optional[Callable] = None,
 ) -> None:
-    """Registers a single route in the Blueprint."""
+    """Registers a single route in the APIRouter."""
+
+    # Convert Flask URL patterns to FastAPI: <int:user_id> -> {user_id}
+    fastapi_path = re.sub(r'<(?:\w+:)?(\w+)>', r'{\1}', route.path)
 
     def make_view_func(rc: RouteConfig, reg: ServiceRegistry, auth: Optional[Callable]):
-        def view_func(**path_params):
+        def view_func(request: Request):
             ctx = RouteContext(
-                request=flask_request,
-                path_params=path_params,
+                request=request,
+                path_params=dict(request.path_params) if request.path_params else {},
                 jwt=None,
                 services=reg,
             )
@@ -94,12 +97,11 @@ def _register_route(
 
     for method in route.methods:
         view_func = make_view_func(route, registry, auth_strategy)
-        endpoint_name = f"{route.path}_{method}"
-        endpoint_name = endpoint_name.replace(".", "_")
-        bp.add_url_rule(
-            route.path,
-            endpoint=endpoint_name,
-            view_func=view_func,
+        router.add_api_route(
+            fastapi_path,
+            endpoint=view_func,
             methods=[method],
+            include_in_schema=False,
         )
-        print(f"  [Engine] {method:7s} {bp.url_prefix}{route.path}")
+        prefix = router.prefix or ""
+        print(f"  [Engine] {method:7s} {prefix}{route.path}")

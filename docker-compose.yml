@@ -1,0 +1,36 @@
+# ⚡ PyApiGate — YAML-driven API Gateway
+# Для запуска скопируйте конфиг:
+#   cp routes.example.yaml routes.yaml
+# Затем:
+#   docker compose up -d
+
+services:
+  api-gate:
+    build: .
+    container_name: pyapi-gate
+    ports:
+      - "5000:5000"
+    environment:
+      - CONFIG_PATH=/app/config/routes.yaml
+    volumes:
+      # Конфигурация роутов (read-only)
+      - ./routes.yaml:/app/config/routes.yaml:ro
+      # Сертификаты для JWT (опционально)
+      - ./certs:/certs:ro
+    restart: unless-stopped
+    networks:
+      - gateway-net
+
+  # Демо-бэкенд для тестирования proxy-функционала
+  # Раскомментируйте и запустите:
+  #   docker compose up -d
+  # mock-backend:
+  #   image: kennethreitz/httpbin
+  #   ports:
+  #     - "18080:80"
+  #   networks:
+  #     - gateway-net
+
+networks:
+  gateway-net:
+    driver: bridge
