@@ -8,3 +8,8 @@ routes:
     methods: [GET]
     handler: hello_handler
     auth: none
+  - path: /admin-only
+    methods: [POST]
+    handler: hello_handler
+    auth: none
+    access: require_admin_role
