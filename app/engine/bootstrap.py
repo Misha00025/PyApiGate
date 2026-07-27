@@ -11,6 +11,8 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, FastAPI, Request
 
+import app.auth_strategies  # noqa: F401 — triggers @register_auth_strategy decorators
+
 from app.engine.context import RouteContext
 from app.engine.loader import load_config
 from app.engine.models import GatewayConfig, RouteConfig
@@ -84,14 +86,14 @@ def _register_route(
     fastapi_path = re.sub(r'<(?:\w+:)?(\w+)>', r'{\1}', route.path)
 
     def make_view_func(rc: RouteConfig, reg: ServiceRegistry, auth: Optional[Callable]):
-        def view_func(request: Request):
+        async def view_func(request: Request):
             ctx = RouteContext(
                 request=request,
                 path_params=dict(request.path_params) if request.path_params else {},
                 jwt=None,
                 services=reg,
             )
-            return execute_pipeline(rc, ctx, auth_strategy=auth)
+            return await execute_pipeline(rc, ctx, auth_strategy=auth)
         view_func.__name__ = f"engine_{rc.path.replace('/', '_').replace('<', '').replace('>', '').replace('.', '_')}"
         return view_func
 

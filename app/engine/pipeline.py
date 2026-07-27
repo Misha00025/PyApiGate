@@ -25,7 +25,7 @@ from app.engine.status import (
 )
 
 
-def execute_pipeline(
+async def execute_pipeline(
     route: RouteConfig,
     ctx: RouteContext,
     auth_strategy: AuthStrategy = None,
@@ -38,7 +38,7 @@ def execute_pipeline(
         ctx: Request context.
         auth_strategy: Authentication function (optional).
     """
-    # Step 1: Auth
+    # Step 1: Auth (sync)
     if route.auth == "required":
         if auth_strategy is None:
             return not_implemented("Auth is required but no auth_strategy provided")
@@ -49,7 +49,7 @@ def execute_pipeline(
 
         ctx.jwt = payload
 
-    # Step 2: Access
+    # Step 2: Access (sync)
     access_name = route.access
     if access_name:
         handler = access_handler_registry.get(access_name)
@@ -60,17 +60,17 @@ def execute_pipeline(
         if not result.allowed:
             return result.response if result.response else forbidden()
 
-    # Step 3: Execute (Proxy or Handler)
+    # Step 3: Execute (async)
     if route.handler is not None:
         handler = response_handler_registry.get(route.handler)
         if handler is None:
             return not_implemented(f"Unknown response handler: {route.handler}")
-        response = handler(ctx)
+        response = await handler(ctx)
     else:
         from app.engine.proxy import execute_proxy
-        response = execute_proxy(route, ctx)
+        response = await execute_proxy(route, ctx)
 
-    # Step 3.5: Response wrapping
+    # Step 3.5: Response wrapping (sync)
     if route.response and route.response.wrap:
         from fastapi.responses import JSONResponse
         try:

@@ -90,11 +90,13 @@ class ServiceConfig:
 class AuthConfig:
     """Auth strategy configuration from YAML."""
     strategy: str = "none"
-    """Strategy name (rsa_jwt, none, or custom)."""
+    """Strategy name (rsa_jwt, oauth2_jwt, none, or custom)."""
     public_key_path: Optional[str] = None
     """Path to RSA public key PEM file (for rsa_jwt)."""
     expected_issuer: Optional[str] = None
     """Expected iss claim in JWT (optional)."""
+    jwks_url: Optional[str] = None
+    """URL to JWKS endpoint (for oauth2_jwt strategy)."""
 
 
 @dataclass

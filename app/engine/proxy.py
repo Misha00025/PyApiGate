@@ -19,7 +19,7 @@ from app.engine.status import bad_gateway, not_implemented
 from app.security import get_user_id
 
 
-def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
+async def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
     """
     Executes a proxy request to a backend service.
 
@@ -51,7 +51,7 @@ def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
     method = ctx.request.method.lower()
     headers = _build_headers(ctx, proxy_cfg)
     params = _build_query_params(route, ctx)
-    body = _build_body(route, ctx)
+    body = await _build_body(route, ctx)
 
     # 4. Execute the request
     try:
@@ -122,11 +122,11 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
     return dict(ctx.request.query_params)
 
 
-def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
+async def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
     """Builds the body for the proxy request (body injection)."""
     params_cfg = route.params
     try:
-        json_body = ctx.request.json()
+        json_body = await ctx.request.json()
     except Exception:
         json_body = None
     if params_cfg is None or params_cfg.body is None:

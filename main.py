@@ -3,6 +3,8 @@ Dev server for PyApiGate (FastAPI).
 """
 import os
 import uvicorn
+
+import handlers  # noqa: F401 — register handlers before create_app
 from app import create_app
 
 app = create_app(

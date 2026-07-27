@@ -42,6 +42,9 @@ def load_config(path: Optional[str] = None) -> GatewayConfig:
     with open(path) as f:
         raw = yaml.safe_load(f)
 
+    # Подстановка переменных окружения во все строки
+    raw = _resolve_env_vars_recursive(raw)
+
     return _parse_config(raw)
 
 
@@ -63,6 +66,17 @@ def _resolve_env_vars(value: str) -> str:
     return re.sub(r'\$\{([^:}]+)(?::([^}]*))?\}', _replace, value)
 
 
+def _resolve_env_vars_recursive(value):
+    """Рекурсивно подставляет переменные окружения во все строки в структуре."""
+    if isinstance(value, str):
+        return _resolve_env_vars(value)
+    elif isinstance(value, dict):
+        return {k: _resolve_env_vars_recursive(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_resolve_env_vars_recursive(v) for v in value]
+    return value
+
+
 def _parse_config(raw: dict) -> GatewayConfig:
     """Parses raw YAML dict into GatewayConfig."""
     base_path = raw.get("base_path", "") or ""
@@ -72,7 +86,7 @@ def _parse_config(raw: dict) -> GatewayConfig:
     services = {}
     for name, cfg in services_raw.items():
         services[name] = ServiceConfig(
-            base_url=_resolve_env_vars(cfg["base_url"]),
+            base_url=cfg["base_url"],
             timeout=cfg.get("timeout", 30),
         )
 
@@ -88,6 +102,7 @@ def _parse_config(raw: dict) -> GatewayConfig:
             strategy=auth_raw.get("strategy", "none"),
             public_key_path=auth_raw.get("public_key_path"),
             expected_issuer=auth_raw.get("expected_issuer"),
+            jwks_url=auth_raw.get("jwks_url"),
         )
     else:
         auth_config = AuthConfig()
