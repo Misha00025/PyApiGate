@@ -49,21 +49,21 @@ async def execute_pipeline(
 
         ctx.jwt = payload
 
-    # Pre-read request body for access handlers (if any)
-    body = None
+    # Pre-read body for backward compat (ctx.state["body"])
     content_type = ctx.request.headers.get("content-type", "")
     if "json" in content_type:
         try:
-            body = await ctx.request.json()
+            ctx.state["body"] = await ctx.request.json()
         except Exception:
-            body = None
+            ctx.state["body"] = None
     elif "text" in content_type or "xml" in content_type:
         try:
             body = await ctx.request.body()
-            body = body.decode("utf-8")
+            ctx.state["body"] = body.decode("utf-8")
         except Exception:
-            body = None
-    ctx.state["body"] = body
+            ctx.state["body"] = None
+    else:
+        ctx.state["body"] = None
 
     # Step 2: Access (sync)
     access_name = route.access

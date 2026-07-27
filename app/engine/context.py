@@ -13,6 +13,68 @@ from typing import Any, Optional
 from fastapi import Request
 
 
+class GatewayRequest:
+    """
+    Cached, framework-agnostic wrapper around the incoming FastAPI request.
+
+    Caches body and JSON so they can be consumed multiple times
+    (solves Starlette's single-consumption stream).
+    Provides a sync get_json() for access handlers.
+    """
+    def __init__(self, req: Request):
+        self._req = req
+        self._cached_body: Optional[bytes] = None
+        self._cached_json: Optional[Any] = None
+
+    @property
+    def method(self) -> str:
+        return self._req.method
+
+    @property
+    def headers(self):
+        return self._req.headers
+
+    @property
+    def query_params(self):
+        return self._req.query_params
+
+    @property
+    def url(self):
+        return self._req.url
+
+    @property
+    def path_params(self):
+        return dict(self._req.path_params)
+
+    async def json(self) -> Any:
+        if self._cached_json is None:
+            self._cached_json = await self._req.json()
+        return self._cached_json
+
+    async def body(self) -> bytes:
+        if self._cached_body is None:
+            self._cached_body = await self._req.body()
+        return self._cached_body
+
+    def get_json(self, silent: bool = False) -> Optional[Any]:
+        """
+        Synchronously reads cached JSON body.
+        Safe to call in sync context (access handlers).
+        Returns None if body is not JSON or not yet consumed.
+        """
+        if self._cached_json is not None:
+            return self._cached_json
+        if self._cached_body is not None:
+            try:
+                import json
+                return json.loads(self._cached_body)
+            except (ValueError, TypeError):
+                return None
+        if silent:
+            return None
+        return None
+
+
 class AccessResult:
     """Result of an access handler check."""
 
@@ -27,7 +89,7 @@ class RouteContext:
     Request context passed through the entire pipeline.
 
     Provides handlers with:
-    - request: original Flask Request
+    - request: original GatewayRequest
     - path_params: parameters from URL (user_id, item_id, ...)
     - jwt: decoded JWT payload (or None)
     - services: registry of HTTP clients for backend services
@@ -36,7 +98,7 @@ class RouteContext:
     Handlers use ctx.allow() and ctx.deny() to return results.
     """
     request: Request
-    """Original Flask Request."""
+    """Original GatewayRequest."""
     path_params: dict[str, Any]
     """Parameters from URL (user_id, item_id, ...)."""
     jwt: Optional[dict[str, Any]] = None
