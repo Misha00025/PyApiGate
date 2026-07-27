@@ -1,7 +1,5 @@
 # ⚡ PyApiGate — YAML-driven API Gateway
-# Для запуска скопируйте конфиг:
-#   cp routes.example.yaml routes.yaml
-# Затем:
+# Создайте configs/routes.yaml и запустите:
 #   docker compose up -d
 
 services:
@@ -11,10 +9,10 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - CONFIG_PATH=/app/config/routes.yaml
+      - CONFIG_PATH=/app/configs/routes.yaml
     volumes:
       # Конфигурация роутов (read-only)
-      - ./routes.yaml:/app/config/routes.yaml:ro
+      - ./configs:/app/configs:ro
       # Сертификаты для JWT (опционально)
       - ./certs:/certs:ro
     restart: unless-stopped

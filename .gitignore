@@ -218,3 +218,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# User configuration and handlers are ignored via their own .gitignore

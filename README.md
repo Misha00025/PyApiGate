@@ -5,7 +5,7 @@
 Define your routes, access control, and proxy rules in a single YAML file — PyApiGate creates FastAPI endpoints, validates JWT tokens, calls your access/response handlers, and proxies requests to backend services.
 
 ```yaml
-# routes.yaml
+# configs/routes.yaml
 services:
   users: { base_url: "http://users-api:8000" }
 
@@ -27,8 +27,8 @@ routes:
 
 ```bash
 pip install -r requirements.txt
-cp routes.example.yaml routes.yaml
-# настроить routes.yaml под себя
+cp routes.example.yaml configs/routes.yaml
+# настроить configs/routes.yaml под себя
 python main.py
 ```
 
@@ -36,20 +36,10 @@ python main.py
 
 ## Your First Route
 
-### 1. Create `routes.yaml`
+### 1. Create `configs/routes.yaml` from template
 
-```yaml
-base_path: ""
-
-services:
-  my_api:
-    base_url: "http://localhost:8080"
-
-routes:
-  - path: /hello
-    methods: [GET]
-    handler: hello_handler
-    auth: none
+```bash
+cp routes.example.yaml configs/routes.yaml
 ```
 
 ### 2. Write a handler
@@ -76,7 +66,7 @@ curl http://localhost:5000/hello
 
 ---
 
-## Route Configuration (routes.yaml)
+## Route Configuration (configs/routes.yaml)
 
 ### Basics
 
@@ -261,7 +251,7 @@ auth:
 
 ```python
 from app import create_app
-app = create_app(config_path="routes.yaml")
+app = create_app(config_path="configs/routes.yaml")
 ```
 
 ---
@@ -307,7 +297,7 @@ Available methods: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`, `.req
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CONFIG_PATH` | Path to routes.yaml | `routes.yaml` |
+| `CONFIG_PATH` | Path to routes.yaml | `configs/routes.yaml` |
 
 Services in `routes.yaml` support `${ENV_VAR}` and `${ENV_VAR:-default}` substitution.
 
@@ -330,11 +320,12 @@ PyApiGate/
 │       ├── proxy.py             # HTTP proxy + parameter injection
 │       ├── bootstrap.py         # YAML → routes → FastAPI
 │       └── status.py            # HTTP response helpers (ok, forbidden, ...)
+├── configs/                      # Your route config (not in repo)
+├── routes.example.yaml           # Template config
 ├── main.py                      # Dev server
 ├── asgi.py                      # Uvicorn entrypoint
 ├── Dockerfile
 ├── requirements.txt
-├── routes.example.yaml          # Template config
 └── tests/
     ├── conftest.py
     ├── test_routes.yaml
@@ -360,8 +351,8 @@ All 16 tests pass in ~0.08s with no external dependencies or Docker.
 ```bash
 docker build -t pyapi-gate .
 docker run -p 5000:5000 \
-  -v /path/to/routes.yaml:/app/routes.yaml \
-  -e CONFIG_PATH=/app/routes.yaml \
+  -v /path/to/configs/routes.yaml:/app/configs/routes.yaml \
+  -e CONFIG_PATH=/app/configs/routes.yaml \
   pyapi-gate
 ```
 

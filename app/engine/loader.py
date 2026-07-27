@@ -36,7 +36,7 @@ def load_config(path: Optional[str] = None) -> GatewayConfig:
         GatewayConfig with parsed services and routes.
     """
     if path is None:
-        path = "routes.yaml"
+        path = "configs/routes.yaml"
 
     with open(path) as f:
         raw = yaml.safe_load(f)
