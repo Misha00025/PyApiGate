@@ -4,7 +4,7 @@
 
 services:
   api-gate:
-    build: .
+    image: ghcr.io/misha00025/pyapi-gate:latest
     container_name: pyapi-gate
     ports:
       - "5000:5000"
