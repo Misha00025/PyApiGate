@@ -30,11 +30,12 @@ class ProxyConfig:
 @dataclass
 class ParamsConfig:
     """Parameter injection settings for backend requests."""
-    query: Optional[dict[str, str] | str] = None
+    query: Optional[dict[str, str] | str | list] = None
     """
     Query string parameters.
     Can be:
-    - "*" — forward all incoming query params + userId from JWT
+    - "*" — forward all incoming query params as-is
+    - ["*", {"dest": "source"}] — forward all + additional mappings
     - {"dest": "source"} — parameter mapping
       source format: "{jwt.field}", "{path.field}", "{query.field}" or literal
     """

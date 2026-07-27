@@ -16,7 +16,6 @@ import requests as http_requests
 from app.engine.context import RouteContext
 from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
 from app.engine.status import bad_gateway, not_implemented
-from app.security import get_user_id
 
 
 async def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
@@ -102,10 +101,23 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
     if params_cfg is None or params_cfg.query is None:
         return dict(ctx.request.query_params)
 
-    if params_cfg.query == "*":
-        result = dict(ctx.request.query_params)
-        if ctx.jwt and get_user_id(ctx.jwt):
-            result["userId"] = get_user_id(ctx.jwt)
+    if isinstance(params_cfg.query, str):
+        # "*" — forward all incoming query parameters as-is, nothing added
+        if params_cfg.query == "*":
+            return dict(ctx.request.query_params)
+        return dict(ctx.request.query_params)
+
+    if isinstance(params_cfg.query, list):
+        # ["*", {"key": "{jwt.sub}"}] — forward all + apply mappings
+        result = {}
+        for item in params_cfg.query:
+            if isinstance(item, str) and item == "*":
+                for k, v in ctx.request.query_params.items():
+                    if k not in result:
+                        result[k] = v
+            elif isinstance(item, dict):
+                for dest, source in item.items():
+                    result[dest] = _resolve_source(source, ctx)
         return result
 
     if isinstance(params_cfg.query, dict):

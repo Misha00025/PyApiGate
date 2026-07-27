@@ -218,17 +218,62 @@ class TestBuildQueryParams:
         assert result == {"a": "1"}
 
     @pytest.mark.asyncio
-    async def test_wildcard_with_jwt(self):
+    async def test_wildcard_forwards_all_params(self):
+        route = RouteConfig(
+            path="/test", auth="none", params=ParamsConfig(query="*")
+        )
+        ctx = RouteContext(
+            request=await make_gateway_request(query={"a": "1", "b": "2"}),
+            path_params={},
+            jwt={"sub": "user123"},
+        )
+        result = _build_query_params(route, ctx)
+        assert result == {"a": "1", "b": "2"}
+        assert "userId" not in result
+
+    @pytest.mark.asyncio
+    async def test_wildcard_no_jwt(self):
         route = RouteConfig(
             path="/test", auth="none", params=ParamsConfig(query="*")
         )
         ctx = RouteContext(
             request=await make_gateway_request(query={"a": "1"}),
             path_params={},
+            jwt=None,
+        )
+        result = _build_query_params(route, ctx)
+        assert result == {"a": "1"}
+        assert "userId" not in result
+
+    @pytest.mark.asyncio
+    async def test_list_form_with_star_and_mapping(self):
+        route = RouteConfig(
+            path="/test",
+            auth="none",
+            params=ParamsConfig(query=["*", {"userId": "{jwt.sub}"}]),
+        )
+        ctx = RouteContext(
+            request=await make_gateway_request(query={"a": "1", "b": "2"}),
+            path_params={},
             jwt={"sub": "user123"},
         )
         result = _build_query_params(route, ctx)
-        assert result == {"a": "1", "userId": "user123"}
+        assert result == {"a": "1", "b": "2", "userId": "user123"}
+
+    @pytest.mark.asyncio
+    async def test_list_form_with_star_and_mapping_no_jwt(self):
+        route = RouteConfig(
+            path="/test",
+            auth="none",
+            params=ParamsConfig(query=["*", {"userId": "{jwt.sub}"}]),
+        )
+        ctx = RouteContext(
+            request=await make_gateway_request(query={"a": "1"}),
+            path_params={},
+            jwt=None,
+        )
+        result = _build_query_params(route, ctx)
+        assert result == {"a": "1", "userId": None}
 
     @pytest.mark.asyncio
     async def test_dict_mapping(self):
@@ -259,20 +304,6 @@ class TestBuildQueryParams:
         )
         result = _build_query_params(route, ctx)
         assert result == {"userId": "user123", "a": "1"}
-
-    @pytest.mark.asyncio
-    async def test_wildcard_no_jwt_skips_userId(self):
-        route = RouteConfig(
-            path="/test", auth="none", params=ParamsConfig(query="*")
-        )
-        ctx = RouteContext(
-            request=await make_gateway_request(query={"a": "1"}),
-            path_params={},
-            jwt=None,
-        )
-        result = _build_query_params(route, ctx)
-        assert result == {"a": "1"}
-        assert "userId" not in result
 
     @pytest.mark.asyncio
     async def test_dict_mapping_override_existing(self):
