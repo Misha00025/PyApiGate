@@ -2,24 +2,12 @@
 
 **Declarative YAML-driven API Gateway for FastAPI.**
 
-Define your routes, access control, and proxy rules in a single YAML file — PyApiGate creates FastAPI endpoints, validates JWT tokens, calls your access/response handlers, and proxies requests to backend services.
+Define routes, auth, access control, and proxy rules in a single YAML file — PyApiGate creates FastAPI endpoints, validates JWT tokens, calls your access/response handlers, and proxies requests to backend services.
 
-```yaml
-# configs/routes.yaml
-services:
-  users: { base_url: "http://users-api:8000" }
-
-routes:
-  - path: /users/{id}
-    methods: [GET, PUT]
-    proxy:
-      service: users
-      path: /users/{id}
-    auth: required
-    access:
-      GET: everyone
-      PUT: owner_only
-```
+- **Declarative** — routes, auth, access, and proxy in one YAML file
+- **Pluggable auth** — `oauth2_jwt`, `rsa_jwt`, API keys, or anything else via AuthStrategy
+- **Zero business logic** — the engine has no built-in domain code; all handlers are yours
+- **Lightweight** — pure FastAPI, no heavy frameworks, no Docker required for development
 
 ---
 
@@ -32,34 +20,7 @@ cp routes.example.yaml configs/routes.yaml
 python main.py
 ```
 
----
-
-## Your First Route
-
-### 1. Create `configs/routes.yaml` from template
-
 ```bash
-cp routes.example.yaml configs/routes.yaml
-```
-
-### 2. Write a handler
-
-```python
-# handlers/hello.py
-from app.engine.registry import register_response_handler
-from app.engine.status import ok
-
-@register_response_handler("hello_handler")
-def hello_handler(ctx):
-    return ok({"message": "Hello from PyApiGate!"})
-```
-
-To use handlers, create a `handlers/` directory with an `__init__.py` that imports your handler modules, then import the handlers package before calling `create_app()`.
-
-### 3. Run
-
-```bash
-python main.py
 curl http://localhost:5000/hello
 # {"status": "OK", "message": "Hello from PyApiGate!"}
 ```
@@ -67,8 +28,6 @@ curl http://localhost:5000/hello
 ---
 
 ## Route Configuration (configs/routes.yaml)
-
-### Basics
 
 ```yaml
 base_path: ""                    # URL prefix for all routes (e.g. /v2)
@@ -93,11 +52,9 @@ Forward requests directly to a backend service:
   methods: [GET, POST]
   proxy:
     service: users              # name from services section
-    path: /groups/{group_id}/items   # target path (supports {placeholders})
+    path: /groups/{group_id}/items
   auth: required
-  access:
-    GET: group_member
-    POST: group_admin
+  access: group_member
 ```
 
 ### Handler Route
@@ -135,7 +92,7 @@ Per-method configuration:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `path` | string | — | FastAPI route path (e.g. `/users/{id}`) |
+| `path` | string | — | Route path with `{placeholders}` (e.g. `/users/{id}`) |
 | `methods` | list/dict | `[GET]` | HTTP methods |
 | `auth` | `"required"` / `"none"` | `"required"` | Whether JWT is required |
 | `access` | string | `null` | Access handler name |
@@ -159,6 +116,8 @@ Per-method configuration:
 
 ### Access Handlers (permission checks)
 
+Synchronous — must return `ctx.allow()` or `ctx.deny()`:
+
 ```python
 from app.engine.registry import register_access_handler
 from app.engine.context import RouteContext
@@ -172,12 +131,14 @@ def check_admin(ctx: RouteContext):
 
 ### Response Handlers (custom responses)
 
+Asynchronous — return a FastAPI `Response`:
+
 ```python
 from app.engine.registry import register_response_handler
-from app.engine.status import ok, created, not_found
+from app.engine.status import ok, not_found
 
 @register_response_handler("get_user_profile")
-def handle_profile(ctx):
+async def handle_profile(ctx):
     user_id = ctx.path_params.get("user_id")
     resp = ctx.services.users.get(f"/profiles/{user_id}")
     if resp.status_code == 404:
@@ -185,37 +146,38 @@ def handle_profile(ctx):
     return ok(resp.json())
 ```
 
-### Handler Conventions
+### RouteContext
 
-- Create a `handlers/` package with an `__init__.py` that imports your handler modules, then import the package before calling `create_app()`.
-- Handlers receive a `RouteContext` with access to request, JWT, path params, and backend services.
-- Access handlers return `ctx.allow()` or `ctx.deny()`.
-- Response handlers return a FastAPI `Response` (use helpers from `app.engine.status`).
-
----
-
-## RouteContext
-
-The context object passed to every handler:
-
-```python
-ctx.request         # FastAPI Request object
-ctx.path_params     # URL parameters (e.g. {"group_id": "123"})
-ctx.jwt             # Decoded JWT payload (dict) or None
-ctx.services        # ServiceRegistry — HTTP clients for backends
-ctx.state           # Mutable dict to pass data between pipeline stages
-
-# Built-in helpers
-ctx.allow()         # -> AccessResult(allowed=True)
-ctx.deny(response)  # -> AccessResult(allowed=False, response=response)
-ctx.deny()          # -> 403 Forbidden
-```
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `ctx.request` | `Request` | FastAPI Request object |
+| `ctx.path_params` | `dict` | URL parameters (e.g. `{"group_id": "123"}`) |
+| `ctx.jwt` | `dict` or `None` | Decoded JWT payload |
+| `ctx.services` | `ServiceRegistry` | HTTP clients for backend services |
+| `ctx.state` | `dict` | Mutable storage between pipeline stages |
 
 ---
 
 ## Auth Strategy
 
-Authentication is configured in YAML via the `auth` section:
+Authentication is configured in YAML via the `auth` section.
+
+### `oauth2_jwt` (recommended)
+
+Dynamically fetches signing keys from the auth service's JWKS endpoint:
+
+```yaml
+auth:
+  strategy: oauth2_jwt
+  jwks_url: "${AUTH_SERVICE_URL}/.well-known/jwks.json"
+  expected_issuer: "https://auth.example.com"
+```
+
+Keys are cached and support rotation. Token validation: RS256 signature, `exp`, and optionally `iss`.
+
+### `rsa_jwt`
+
+Static RSA public key loaded from a PEM file:
 
 ```yaml
 auth:
@@ -224,7 +186,9 @@ auth:
   expected_issuer: "https://auth.example.com"
 ```
 
-PyApiGate ships with built-in strategies (`rsa_jwt`). To use a custom strategy, register it in Python before calling `create_app()`:
+### Custom strategy
+
+Register any strategy in Python and reference it by name:
 
 ```python
 from app.engine.registry import register_auth_strategy
@@ -240,18 +204,9 @@ def api_key_factory(config: AuthConfig):
     return _validate
 ```
 
-Once registered, reference it in YAML by name:
-
 ```yaml
 auth:
   strategy: api_key
-```
-
-`create_app()` returns a FastAPI application and takes no auth parameters:
-
-```python
-from app import create_app
-app = create_app(config_path="configs/routes.yaml")
 ```
 
 ---
@@ -265,84 +220,11 @@ params:
   query:
     userId: "{jwt.userId}"       # from JWT payload
     groupId: "{path.group_id}"   # from URL parameter
-    "*": query                   # forward all other query params as-is
   body:
     owner_id: "{jwt.userId}"     # inject into JSON body
 ```
 
 Shorthand `params.query: "*"` forwards all incoming query parameters plus `userId` from JWT.
-
----
-
-## ServiceRegistry
-
-Access backend services from response handlers:
-
-```python
-# Define in routes.yaml:
-# services:
-#   users:  { base_url: "http://users-api:8000" }
-#   orders: { base_url: "http://orders-api:8000" }
-
-# In your handler:
-resp = ctx.services.users.get("/profiles/42")
-resp = ctx.services.orders.post("/checkout", json={"cart": [...]})
-```
-
-Available methods: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`, `.request()`.
-
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CONFIG_PATH` | Path to routes.yaml | `configs/routes.yaml` |
-
-Services in `routes.yaml` support `${ENV_VAR}` and `${ENV_VAR:-default}` substitution.
-
----
-
-## Project Structure
-
-```
-PyApiGate/
-├── app/
-│   ├── __init__.py              # create_app() — FastAPI app factory
-│   ├── auth_strategies.py       # Built-in auth strategies (RSA JWT, ...)
-│   ├── security.py              # JWT helpers: get_user_id()
-│   └── engine/
-│       ├── models.py            # RouteConfig, GatewayConfig, ProxyConfig, ...
-│       ├── context.py           # RouteContext, AccessResult
-│       ├── registry.py          # ServiceRegistry, handler registries + decorators
-│       ├── loader.py            # YAML parser → GatewayConfig
-│       ├── pipeline.py          # Auth → Access → Execute
-│       ├── proxy.py             # HTTP proxy + parameter injection
-│       ├── bootstrap.py         # YAML → routes → FastAPI
-│       └── status.py            # HTTP response helpers (ok, forbidden, ...)
-├── configs/                      # Your route config (not in repo)
-├── routes.example.yaml           # Template config
-├── main.py                      # Dev server
-├── asgi.py                      # Uvicorn entrypoint
-├── Dockerfile
-├── requirements.txt
-└── tests/
-    ├── conftest.py
-    ├── test_routes.yaml
-    ├── test_engine_unit.py
-    └── test_handlers.py
-```
-
----
-
-## Running Tests
-
-```bash
-pip install pytest
-python -m pytest tests/ -v
-```
-
-All 16 tests pass in ~0.08s with no external dependencies or Docker.
 
 ---
 
@@ -355,25 +237,3 @@ docker run -p 5000:5000 \
   -e CONFIG_PATH=/app/configs/routes.yaml \
   pyapi-gate
 ```
-
----
-
-## Why PyApiGate?
-
-- **Declarative** — routes, auth, access, and proxy rules in one YAML file
-- **Pluggable auth** — swap RSA JWT for API keys, OIDC, or anything else via AuthStrategy
-- **Zero business logic** — the engine has no built-in domain code; all handlers are yours
-- **Lightweight** — pure FastAPI, no heavy frameworks, no Docker required for development
-- **Testable** — unit tests run in milliseconds without infrastructure
-
----
-
-## Migrating from TDN
-
-If you are migrating from TheDungeonNotebook's API Gateway, note the following differences:
-
-- **`_sanitize_user_params` is removed.** In TDN, a `before_request` hook stripped `userId` and `access` from query parameters. PyApiGate does not do this — if you need similar behaviour, add your own `before_request` handler.
-- **Auto-import of `handlers/` is removed.** You must explicitly import your handlers package before calling `create_app()`.
-- **`base_path` default is now `""`** (previously `"/v2"`).
-- **`access` field is now a string only** (dictionary per-method access is no longer supported; use the multi-method YAML format instead).
-- **`ResponseTransform` and `ResponseConfig` are removed.** Use response handlers for any custom response logic.

@@ -3,15 +3,18 @@
 
 # ─── Auth ────────────────────────────────────────────
 # Defines the authentication strategy.
-#   strategy: rsa_jwt — JWT with RSA-256 signature (public_key_path required)
-#   strategy: none — no authentication (only routes with auth: none)
+#   strategy: oauth2_jwt — JWKS-based JWT validation (jwks_url required)
+#   strategy: rsa_jwt — static RSA public key (public_key_path required)
+#   strategy: none — no authentication
 # For custom strategies — @register_auth_strategy("name") in code
+#
+# All string values support ${ENV_VAR} and ${ENV_VAR:-default}.
 # ──────────────────────────────────────────────────────
 base_path: ""
 
 auth:
-  strategy: rsa_jwt
-  public_key_path: /certs/public.pem
+  strategy: oauth2_jwt
+  jwks_url: "${AUTH_SERVICE_URL}/.well-known/jwks.json"
   expected_issuer: "https://auth.example.com"
 
 services:
