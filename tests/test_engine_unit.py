@@ -26,6 +26,22 @@ class TestModels:
         route = RouteConfig(path="/test")
         assert route.access is None
 
+    def test_response_config_defaults(self):
+        """ResponseConfig with no wrap should have wrap=None."""
+        from app.engine.models import ResponseConfig
+        cfg = ResponseConfig()
+        assert cfg.wrap is None
+
+    def test_route_config_with_response(self):
+        """RouteConfig should accept response config."""
+        from app.engine.models import ResponseConfig
+        route = RouteConfig(
+            path="/test",
+            response=ResponseConfig(wrap="data"),
+        )
+        assert route.response is not None
+        assert route.response.wrap == "data"
+
 
 class TestContext:
     def test_allow(self):

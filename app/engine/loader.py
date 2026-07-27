@@ -20,6 +20,7 @@ from app.engine.models import (
     GatewayConfig,
     ParamsConfig,
     ProxyConfig,
+    ResponseConfig,
     RouteConfig,
     ServiceConfig,
 )
@@ -166,6 +167,14 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
             body=params_raw.get("body"),
         )
 
+    # Response
+    response = None
+    if "response" in route_def:
+        response_raw = route_def["response"]
+        response = ResponseConfig(
+            wrap=response_raw.get("wrap"),
+        )
+
     return [
         RouteConfig(
             path=path,
@@ -175,6 +184,7 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
             proxy=proxy,
             handler=handler,
             params=params,
+            response=response,
             description=description,
         )
     ]

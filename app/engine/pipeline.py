@@ -9,6 +9,7 @@ Processing order:
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 from starlette.responses import Response
@@ -68,5 +69,17 @@ def execute_pipeline(
     else:
         from app.engine.proxy import execute_proxy
         response = execute_proxy(route, ctx)
+
+    # Step 3.5: Response wrapping
+    if route.response and route.response.wrap:
+        from fastapi.responses import JSONResponse
+        try:
+            data = json.loads(response.body)
+        except Exception:
+            data = response.body
+        response = JSONResponse(
+            content={route.response.wrap: data},
+            status_code=response.status_code,
+        )
 
     return response

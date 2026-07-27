@@ -46,6 +46,13 @@ class ParamsConfig:
 
 
 @dataclass
+class ResponseConfig:
+    """Response wrapping configuration."""
+    wrap: Optional[str] = None
+    """Key name to wrap the JSON response in."""
+
+
+@dataclass
 class RouteConfig:
     """Configuration for a single route."""
     path: str
@@ -64,6 +71,8 @@ class RouteConfig:
     """Response handler name (if the route type is HANDLER)."""
     params: Optional[ParamsConfig] = None
     """Parameter injection settings."""
+    response: Optional[ResponseConfig] = None
+    """Response wrapping configuration."""
     description: Optional[str] = None
     """Route description (for documentation)."""
 
