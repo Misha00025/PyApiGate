@@ -6,6 +6,7 @@ Creates an APIRouter with routes from config, registers it in the FastAPI app.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Callable, Optional
 
@@ -18,6 +19,8 @@ from app.engine.loader import load_config
 from app.engine.models import GatewayConfig, RouteConfig
 from app.engine.pipeline import execute_pipeline
 from app.engine.registry import ServiceRegistry, auth_strategy_registry
+
+logger = logging.getLogger(__name__)
 
 
 def bootstrap(
@@ -36,16 +39,16 @@ def bootstrap(
     """
     # Load config
     config = load_config(config_path)
-    print(f"[Engine] Loaded {len(config.routes)} routes from config")
+    logger.info("Loaded %d routes from config", len(config.routes))
 
     # Create auth strategy from config
 
     if config.auth.strategy and config.auth.strategy != "none":
         strategy = auth_strategy_registry.create(config.auth.strategy, config.auth)
         if strategy is None:
-            print(f"[Engine] Warning: unknown auth strategy '{config.auth.strategy}', auth disabled")
+            logger.warning("Unknown auth strategy '%s', auth disabled", config.auth.strategy)
         else:
-            print(f"[Engine] Using auth strategy: {config.auth.strategy}")
+            logger.info("Using auth strategy: %s", config.auth.strategy)
     else:
         strategy = None
 
@@ -57,7 +60,7 @@ def bootstrap(
             "timeout": svc.timeout,
         }
     registry = ServiceRegistry(services_dict)
-    print(f"[Engine] Registered services: {list(services_dict.keys())}")
+    logger.info("Registered services: %s", list(services_dict.keys()))
 
     # Create APIRouter
     bp_name = "engine_api"
@@ -69,7 +72,7 @@ def bootstrap(
 
     # Register router in the app
     app.include_router(router)
-    print(f"[Engine] Router '{bp_name}' registered at '{config.base_path or '/'}'")
+    logger.info("Router '%s' registered at '%s'", bp_name, config.base_path or "/")
 
     return config
 
@@ -106,4 +109,4 @@ def _register_route(
             include_in_schema=False,
         )
         prefix = router.prefix or ""
-        print(f"  [Engine] {method:7s} {prefix}{route.path}")
+        logger.debug("  [Engine] %s %s%s", method.ljust(7), prefix, route.path)
