@@ -11,7 +11,7 @@ async def hello_handler(ctx):
 
 @register_access_handler("require_admin_role")
 def require_admin_role(ctx):
-    body = ctx.state.get("body")
+    body = ctx.request.json
     if body is None or not isinstance(body, dict) or body.get("role") != "admin":
         return ctx.deny()
     return ctx.allow()

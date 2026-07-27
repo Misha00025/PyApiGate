@@ -7,6 +7,7 @@ and available to all handlers (access and response).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -19,7 +20,6 @@ class GatewayRequest:
 
     Caches body and JSON so they can be consumed multiple times
     (solves Starlette's single-consumption stream).
-    Provides a sync get_json() for access handlers.
     """
     def __init__(self, req: Request):
         self._req = req
@@ -46,33 +46,27 @@ class GatewayRequest:
     def path_params(self):
         return dict(self._req.path_params)
 
-    async def json(self) -> Any:
-        if self._cached_json is None:
-            self._cached_json = await self._req.json()
-        return self._cached_json
+    async def load_body(self) -> None:
+        """Load raw body from the stream into cache. Safe to call multiple times."""
+        if self._cached_body is not None:
+            return
+        self._cached_body = await self._req.body()
+        content_type = self._req.headers.get("content-type", "")
+        if "json" in content_type:
+            try:
+                self._cached_json = json.loads(self._cached_body.decode("utf-8"))
+            except (ValueError, TypeError, UnicodeDecodeError):
+                self._cached_json = None
 
-    async def body(self) -> bytes:
-        if self._cached_body is None:
-            self._cached_body = await self._req.body()
+    @property
+    def body(self) -> Optional[bytes]:
+        """Cached raw request body. None if load_body() hasn't been called yet."""
         return self._cached_body
 
-    def get_json(self, silent: bool = False) -> Optional[Any]:
-        """
-        Synchronously reads cached JSON body.
-        Safe to call in sync context (access handlers).
-        Returns None if body is not JSON or not yet consumed.
-        """
-        if self._cached_json is not None:
-            return self._cached_json
-        if self._cached_body is not None:
-            try:
-                import json
-                return json.loads(self._cached_body)
-            except (ValueError, TypeError):
-                return None
-        if silent:
-            return None
-        return None
+    @property
+    def json(self) -> Optional[Any]:
+        """Cached parsed JSON body. None if body isn't JSON or load_body() hasn't been called."""
+        return self._cached_json
 
 
 class AccessResult:
