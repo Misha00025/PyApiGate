@@ -25,4 +25,3 @@ Project is in `0.x.y` pre-release phase.
 - [ ] `python scripts/validate_config.py` passes
 - [ ] `pytest tests/ -v` passes
 - [ ] Documentation updated if adding/changing user-facing features
-- [ ] No `C#` or `get_user_id` references introduced
