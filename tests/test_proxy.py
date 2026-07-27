@@ -436,6 +436,44 @@ class TestBuildHeaders:
         result = _build_headers(ctx, proxy_cfg)
         assert result.get("content-type") == "application/xml"
 
+    @pytest.mark.asyncio
+    async def test_jwt_source_in_header(self):
+        gw = await make_gateway_request()
+        gw._req.state.jwt = {"sub": "user123"}
+        ctx = RouteContext(request=gw, path_params={})
+        ctx.jwt = {"sub": "user123"}
+        proxy_cfg = ProxyConfig(
+            service="test",
+            path="/api",
+            headers={"X-User": "{jwt.sub}"},
+        )
+        result = _build_headers(ctx, proxy_cfg)
+        assert result.get("X-User") == "user123"
+
+    @pytest.mark.asyncio
+    async def test_path_source_in_header(self):
+        gw = await make_gateway_request()
+        ctx = RouteContext(request=gw, path_params={"group_id": "42"})
+        proxy_cfg = ProxyConfig(
+            service="test",
+            path="/api",
+            headers={"X-Group": "{path.group_id}"},
+        )
+        result = _build_headers(ctx, proxy_cfg)
+        assert result.get("X-Group") == "42"
+
+    @pytest.mark.asyncio
+    async def test_static_header_unchanged(self):
+        gw = await make_gateway_request()
+        ctx = RouteContext(request=gw, path_params={})
+        proxy_cfg = ProxyConfig(
+            service="test",
+            path="/api",
+            headers={"X-Static": "hello"},
+        )
+        result = _build_headers(ctx, proxy_cfg)
+        assert result.get("X-Static") == "hello"
+
 
 # ---------------------------------------------------------------------------
 # _to_response

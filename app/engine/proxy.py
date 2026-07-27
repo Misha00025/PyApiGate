@@ -91,7 +91,8 @@ def _build_headers(ctx: RouteContext, proxy_cfg: ProxyConfig) -> dict[str, str]:
     for key, value in ctx.request.headers.items():
         if key.lower() not in ("host", "content-length", "content-type"):
             headers[key] = value
-    headers.update(proxy_cfg.headers)
+    for key, value in proxy_cfg.headers.items():
+        headers[key] = _resolve_source(value, ctx)
     return headers
 
 

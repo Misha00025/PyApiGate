@@ -63,11 +63,12 @@ params:
 
 ## proxy.headers
 
-Set additional headers on the proxied request.
+Set additional headers on the proxied request. Values support the same source expressions as query and body parameters.
 
 ```yaml
 proxy:
   headers:
     Authorization: "Bearer static-token"
-    X-Custom: "{jwt.tenantId}"
+    X-User: "{jwt.sub}"
+    X-Group: "{path.group_id}"
 ```

@@ -26,6 +26,8 @@ def check_admin(ctx: RouteContext):
 
 Response handlers produce the response. They must return a Starlette `Response`.
 
+> **Note:** If a route has both `handler` and `proxy` configured, the handler takes priority and `proxy` is ignored.
+
 ```python
 from app.engine.registry import register_response_handler
 from app.engine.status import ok, not_found

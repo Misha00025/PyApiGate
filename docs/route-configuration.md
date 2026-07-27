@@ -71,6 +71,8 @@ Execute custom response handler logic.
   auth: required
 ```
 
+> **Note:** `handler` and `proxy` are mutually exclusive. If both are set, `handler` takes priority and the route will not proxy.
+
 ## Multi-Method Routes
 
 Different configuration per HTTP method.
