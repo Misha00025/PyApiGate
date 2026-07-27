@@ -126,7 +126,7 @@ async def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
     """Builds the body for the proxy request (body injection)."""
     params_cfg = route.params
     try:
-        json_body = await ctx.request.json()
+        json_body = ctx.request.json
     except Exception:
         json_body = None
     if params_cfg is None or params_cfg.body is None:
