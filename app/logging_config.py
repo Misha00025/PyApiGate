@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from typing import Any
 
 from app.logging_formatter import SourceExpressionFormatter
@@ -44,12 +45,33 @@ def setup_logging(config: dict[str, Any]) -> None:
     log_file = logging_cfg.get("file")
     if log_file:
         try:
-            file_handler = logging.FileHandler(log_file)
+            rotation = logging_cfg.get("rotation")
+            if rotation and isinstance(rotation, dict):
+                rot_type = rotation.get("type")
+                backup_count = rotation.get("backup_count", 7)
+                if rot_type == "size":
+                    file_handler = RotatingFileHandler(
+                        log_file,
+                        maxBytes=rotation.get("max_bytes", 10 * 1024 * 1024),
+                        backupCount=backup_count,
+                    )
+                elif rot_type == "timed":
+                    file_handler = TimedRotatingFileHandler(
+                        log_file,
+                        when=rotation.get("when", "midnight"),
+                        interval=rotation.get("interval", 1),
+                        backupCount=backup_count,
+                    )
+                else:
+                    file_handler = logging.FileHandler(log_file)
+            else:
+                file_handler = logging.FileHandler(log_file)
+
             file_handler.setLevel(level)
             file_handler.setFormatter(SourceExpressionFormatter(log_format))
             root.addHandler(file_handler)
-        except (IOError, OSError) as e:
-            root.warning("Failed to open log file '%s': %s. Logging to console only.", log_file, e)
+        except (IOError, OSError, ValueError) as e:
+            root.warning("Failed to set up log file '%s': %s. Logging to console only.", log_file, e)
 
     # Suppress noisy library loggers
     for lib in ("uvicorn", "uvicorn.access", "httpx", "httpcore"):
