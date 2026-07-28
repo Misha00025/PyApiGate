@@ -42,80 +42,87 @@ async def execute_pipeline(
     req_id = ctx.request.headers.get("X-Request-ID") or str(uuid.uuid4())
     ctx.state["request_id"] = req_id
 
-    start = time.monotonic()
-    method = ctx.request.method
-    path = str(ctx.request.url.path)
+    from app.logging_context import set_logging_context, clear_logging_context
+    set_logging_context(ctx)
 
-    # Step 1: Auth (sync)
-    if route.auth == "required":
-        if auth_strategy is None:
-            logger.warning("No auth_strategy provided for required auth: %s %s [%s]", method, path, req_id)
-            return not_implemented("Auth is required but no auth_strategy provided")
-
-        payload = auth_strategy(ctx)
-        if payload is None:
-            logger.warning("Auth failed: %s %s [%s]", method, path, req_id)
-            return unauthorized("Invalid or expired token")
-
-        ctx.jwt = payload
-        logger.debug("Auth OK: %s %s user=%s [%s]", method, path, payload.get("sub", "?"), req_id)
-
-    await ctx.request.load_body()
-
-    # Step 2: Access (sync)
-    access_name = route.access
-    if access_name:
-        handler = access_handler_registry.get(access_name)
-        if handler is None:
-            logger.error("Unknown access handler '%s': %s %s [%s]", access_name, method, path, req_id)
-            return not_implemented(f"Unknown access handler: {access_name}")
-
-        try:
-            result = handler(ctx)
-        except Exception:
-            logger.exception("Access handler '%s' crashed: %s %s [%s]", access_name, method, path, req_id)
-            return forbidden("Access handler error")
-
-        if not result.allowed:
-            elapsed = time.monotonic() - start
-            logger.warning(
-                "Denied by '%s': %s %s [%s] (%.3fs)",
-                access_name, method, path, req_id, elapsed,
-            )
-            response = result.response if result.response else forbidden()
-            response.headers["X-Deny-Reason"] = access_name
-            return response
-
-        logger.debug("Access OK by '%s': %s %s [%s]", access_name, method, path, req_id)
-
-    # Step 3: Execute (async)
     try:
-        if route.handler is not None:
-            handler = response_handler_registry.get(route.handler)
+        start = time.monotonic()
+        method = ctx.request.method
+        path = str(ctx.request.url.path)
+
+        # Step 1: Auth (sync)
+        if route.auth == "required":
+            if auth_strategy is None:
+                logger.warning("No auth_strategy provided for required auth: %s %s [%s]", method, path, req_id)
+                return not_implemented("Auth is required but no auth_strategy provided")
+
+            payload = auth_strategy(ctx)
+            if payload is None:
+                logger.warning("Auth failed: %s %s [%s]", method, path, req_id)
+                return unauthorized("Invalid or expired token")
+
+            ctx.jwt = payload
+            set_logging_context(ctx)
+            logger.debug("Auth OK: %s %s user=%s [%s]", method, path, payload.get("sub", "?"), req_id)
+
+        await ctx.request.load_body()
+
+        # Step 2: Access (sync)
+        access_name = route.access
+        if access_name:
+            handler = access_handler_registry.get(access_name)
             if handler is None:
-                logger.error("Unknown response handler '%s': %s %s [%s]", route.handler, method, path, req_id)
-                return not_implemented(f"Unknown response handler: {route.handler}")
-            response = await handler(ctx)
-        else:
-            from app.engine.proxy import execute_proxy
-            response = await execute_proxy(route, ctx)
-    except Exception:
-        logger.exception("Handler crashed: %s %s [%s]", method, path, req_id)
-        return bad_gateway("Upstream error")
+                logger.error("Unknown access handler '%s': %s %s [%s]", access_name, method, path, req_id)
+                return not_implemented(f"Unknown access handler: {access_name}")
 
-    # Step 3.5: Response wrapping (sync)
-    if route.response and route.response.wrap:
-        from fastapi.responses import JSONResponse
+            try:
+                result = handler(ctx)
+            except Exception:
+                logger.exception("Access handler '%s' crashed: %s %s [%s]", access_name, method, path, req_id)
+                return forbidden("Access handler error")
+
+            if not result.allowed:
+                elapsed = time.monotonic() - start
+                logger.warning(
+                    "Denied by '%s': %s %s [%s] (%.3fs)",
+                    access_name, method, path, req_id, elapsed,
+                )
+                response = result.response if result.response else forbidden()
+                response.headers["X-Deny-Reason"] = access_name
+                return response
+
+            logger.debug("Access OK by '%s': %s %s [%s]", access_name, method, path, req_id)
+
+        # Step 3: Execute (async)
         try:
-            data = json.loads(response.body)
+            if route.handler is not None:
+                handler = response_handler_registry.get(route.handler)
+                if handler is None:
+                    logger.error("Unknown response handler '%s': %s %s [%s]", route.handler, method, path, req_id)
+                    return not_implemented(f"Unknown response handler: {route.handler}")
+                response = await handler(ctx)
+            else:
+                from app.engine.proxy import execute_proxy
+                response = await execute_proxy(route, ctx)
         except Exception:
-            data = response.body
-        response = JSONResponse(
-            content={route.response.wrap: data},
-            status_code=response.status_code,
-        )
+            logger.exception("Handler crashed: %s %s [%s]", method, path, req_id)
+            return bad_gateway("Upstream error")
 
-    elapsed = time.monotonic() - start
-    logger.info("%s %s -> %d [%s] (%.3fs)", method, path, response.status_code, req_id, elapsed)
+        # Step 3.5: Response wrapping (sync)
+        if route.response and route.response.wrap:
+            from fastapi.responses import JSONResponse
+            try:
+                data = json.loads(response.body)
+            except Exception:
+                data = response.body
+            response = JSONResponse(
+                content={route.response.wrap: data},
+                status_code=response.status_code,
+            )
 
-    return response
+        elapsed = time.monotonic() - start
+        logger.info("%s %s -> %d [%s] (%.3fs)", method, path, response.status_code, req_id, elapsed)
+
+        return response
+    finally:
+        clear_logging_context()

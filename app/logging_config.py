@@ -9,6 +9,8 @@ import logging
 import sys
 from typing import Any
 
+from app.logging_formatter import SourceExpressionFormatter
+
 
 def setup_logging(config: dict[str, Any]) -> None:
     """
@@ -35,7 +37,7 @@ def setup_logging(config: dict[str, Any]) -> None:
     # Console handler
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(level)
-    console.setFormatter(logging.Formatter(log_format))
+    console.setFormatter(SourceExpressionFormatter(log_format))
     root.addHandler(console)
 
     # File handler (optional)
@@ -44,7 +46,7 @@ def setup_logging(config: dict[str, Any]) -> None:
         try:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(level)
-            file_handler.setFormatter(logging.Formatter(log_format))
+            file_handler.setFormatter(SourceExpressionFormatter(log_format))
             root.addHandler(file_handler)
         except (IOError, OSError) as e:
             root.warning("Failed to open log file '%s': %s. Logging to console only.", log_file, e)
