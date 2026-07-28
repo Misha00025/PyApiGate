@@ -37,6 +37,11 @@ def bootstrap(
     Returns:
         GatewayConfig — loaded configuration.
     """
+    # Healthcheck endpoint — no auth, no proxy, available at /health
+    @app.get("/health", include_in_schema=False)
+    async def _health():
+        return {"status": "ok"}
+
     # Load config
     config = load_config(config_path)
     logger.info("Loaded %d routes from config", len(config.routes))

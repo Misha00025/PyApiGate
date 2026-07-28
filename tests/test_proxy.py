@@ -407,9 +407,8 @@ class TestBuildHeaders:
         ctx = RouteContext(request=gw, path_params={})
         proxy_cfg = ProxyConfig(service="test", path="/api", headers={})
         result = _build_headers(ctx, proxy_cfg)
-        assert "content-type" not in result
         assert "host" not in result
-        assert "content-length" not in result
+        # content-type and content-length are forwarded now (not filtered)
 
     @pytest.mark.asyncio
     async def test_extra_headers_from_config(self):
@@ -579,3 +578,57 @@ class TestExecuteProxy:
         )
         resp = await execute_proxy(route, ctx)
         assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_post_with_non_json_body(self, mock_services):
+        """Non-JSON body should be forwarded as raw data."""
+        raw_str = "raw binary data"
+        body_bytes = _json.dumps(raw_str).encode()
+        gw = await make_gateway_request(
+            method="POST", path="/test", body=raw_str,
+            content_type="application/octet-stream"
+        )
+        route = RouteConfig(
+            path="/test",
+            auth="none",
+            proxy=ProxyConfig(service="test_svc", path="/api/data"),
+        )
+        ctx = RouteContext(
+            request=gw,
+            path_params={},
+            jwt=None,
+            services=mock_services,
+        )
+        resp = await execute_proxy(route, ctx)
+        assert resp.status_code == 200
+        client = mock_services.get_client("test_svc")
+        call_kwargs = client.request.call_args[1]
+        assert "data" in call_kwargs
+        assert call_kwargs["data"] == body_bytes
+
+    @pytest.mark.asyncio
+    async def test_post_with_multipart(self, mock_services):
+        """Multipart body should be forwarded as raw data with original content-type."""
+        body_bytes = b"--boundary\r\nContent-Disposition: form-data; name=\"file\"\r\n\r\ncontent\r\n--boundary--"
+        gw = await make_gateway_request(
+            method="POST", path="/upload", body=body_bytes.decode(),
+            content_type="multipart/form-data; boundary=boundary"
+        )
+        route = RouteConfig(
+            path="/upload",
+            auth="none",
+            proxy=ProxyConfig(service="test_svc", path="/api/upload"),
+        )
+        ctx = RouteContext(
+            request=gw,
+            path_params={},
+            jwt=None,
+            services=mock_services,
+        )
+        resp = await execute_proxy(route, ctx)
+        assert resp.status_code == 200
+        client = mock_services.get_client("test_svc")
+        call_kwargs = client.request.call_args[1]
+        assert "data" in call_kwargs
+        headers = call_kwargs.get("headers", {})
+        assert "content-type" in headers

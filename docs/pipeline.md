@@ -8,7 +8,7 @@ Every request passes through a 7-step pipeline in `execute_pipeline()`.
 |---|------|------|--------|
 | 1 | Request ID | always | Reads `X-Request-ID` from the header or generates a `uuid4()`. Stored in `ctx.state["request_id"]`. |
 | 2 | Auth | `route.auth == "required"` | Calls the auth strategy. Returns a dict → `ctx.jwt`. Returns `None` → **401** Unauthorized. |
-| 3 | Body Load | always | `await ctx.request.load_body()`. Caches the request body. |
+| 3 | Body Load | always | `await ctx.request.load_body()`. Caches the request body. For JSON content types, also parses it into `ctx.request.json`. For non-JSON content types (multipart, binary, etc.), only raw `ctx.request.body` is available. |
 | 4 | Access | `route.access` is set | Calls the access handler. `deny()` → **403** with `X-Deny-Reason` header. |
 | 5 | Execute | `route.handler` is set | Calls the response handler. **If both `handler` and `proxy` are set, `handler` takes priority and `proxy` is ignored.** |
 | 5a | Execute | only `proxy` is set | `execute_proxy()` — proxies the request to the backend service. |

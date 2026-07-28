@@ -27,6 +27,8 @@ async def _make_request(method="GET", path="/test", body=None,
         body_bytes = json.dumps(body).encode()
     elif isinstance(body, str):
         body_bytes = body.encode()
+    elif isinstance(body, bytes):
+        body_bytes = body
     else:
         body_bytes = b""
 
@@ -103,6 +105,26 @@ class TestGatewayRequest:
         await gw.load_body()
         assert gw.body is not None
         assert gw.json is None
+
+    @pytest.mark.asyncio
+    async def test_is_json_true(self):
+        gw = await _make_gw(body={"key": "value"}, content_type="application/json")
+        assert gw.is_json is True
+
+    @pytest.mark.asyncio
+    async def test_is_json_false_for_multipart(self):
+        gw = await _make_gw(body="data", content_type="multipart/form-data")
+        assert gw.is_json is False
+
+    @pytest.mark.asyncio
+    async def test_is_json_false_for_octet(self):
+        gw = await _make_gw(body=b"data", content_type="application/octet-stream")
+        assert gw.is_json is False
+
+    @pytest.mark.asyncio
+    async def test_content_type_property(self):
+        gw = await _make_gw(body="{}", content_type="application/json; charset=utf-8")
+        assert "json" in gw.content_type
 
 
 # ---------------------------------------------------------------------------

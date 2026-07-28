@@ -54,6 +54,8 @@ params:
 
 Inject values into the JSON request body sent to the backend.
 
+Body injection merges the specified fields into the original JSON body. Original fields are preserved — only the keys listed in `body:` are added or overridden.
+
 ```yaml
 params:
   body:
@@ -72,3 +74,5 @@ proxy:
     X-User: "{jwt.sub}"
     X-Group: "{path.group_id}"
 ```
+
+> **Note:** Parameter injection (body and query) only works with JSON requests. For non-JSON body types (multipart/form-data, application/octet-stream, text/plain, etc.), the body is forwarded as-is without injection.

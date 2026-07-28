@@ -7,6 +7,7 @@ from path, query, body and JWT.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from fastapi.responses import JSONResponse
@@ -14,6 +15,8 @@ from starlette.responses import Response
 import requests as http_requests
 
 from app.engine.context import RouteContext
+
+logger = logging.getLogger(__name__)
 from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
 from app.engine.status import bad_gateway, not_implemented
 
@@ -61,13 +64,22 @@ async def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
                 headers=headers,
                 params=params,
             )
-        else:
+        elif ctx.request.is_json:
             resp = client.request(
                 method.upper(),
                 target_path,
                 headers=headers,
                 params=params,
                 json=body,
+            )
+        else:
+            data = ctx.request.body if ctx.request.body else None
+            resp = client.request(
+                method.upper(),
+                target_path,
+                headers=headers,
+                params=params,
+                data=data,
             )
     except http_requests.RequestException as e:
         return bad_gateway(f"Upstream error: {e}")
@@ -89,7 +101,7 @@ def _build_headers(ctx: RouteContext, proxy_cfg: ProxyConfig) -> dict[str, str]:
     """Builds headers for the proxy request."""
     headers = {}
     for key, value in ctx.request.headers.items():
-        if key.lower() not in ("host", "content-length", "content-type"):
+        if key.lower() not in ("host",):
             headers[key] = value
     for key, value in proxy_cfg.headers.items():
         headers[key] = _resolve_source(value, ctx)
@@ -103,9 +115,6 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
         return dict(ctx.request.query_params)
 
     if isinstance(params_cfg.query, str):
-        # "*" — forward all incoming query parameters as-is, nothing added
-        if params_cfg.query == "*":
-            return dict(ctx.request.query_params)
         return dict(ctx.request.query_params)
 
     if isinstance(params_cfg.query, list):
@@ -136,12 +145,22 @@ def _build_query_params(route: RouteConfig, ctx: RouteContext) -> dict[str, Any]
 
 
 async def _build_body(route: RouteConfig, ctx: RouteContext) -> Optional[dict]:
-    """Builds the body for the proxy request (body injection)."""
+    """Builds the body for the proxy request (body injection).
+
+    For JSON requests, returns the merged body with injected params.
+    For non-JSON requests, returns None (raw body is forwarded separately).
+    """
     params_cfg = route.params
     try:
         json_body = ctx.request.json
     except Exception:
         json_body = None
+
+    if not ctx.request.is_json:
+        if params_cfg is not None and params_cfg.body is not None:
+            logger.warning("Body injection not supported for non-JSON content type")
+        return None
+
     if params_cfg is None or params_cfg.body is None:
         return json_body
 

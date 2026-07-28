@@ -68,6 +68,14 @@ class GatewayRequest:
         """Cached parsed JSON body. None if body isn't JSON or load_body() hasn't been called."""
         return self._cached_json
 
+    @property
+    def content_type(self) -> str:
+        return self._req.headers.get("content-type", "").lower()
+
+    @property
+    def is_json(self) -> bool:
+        return "json" in self.content_type
+
 
 class AccessResult:
     """Result of an access handler check."""
