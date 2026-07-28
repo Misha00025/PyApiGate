@@ -11,7 +11,7 @@
     }
   },
   "routes": {
-    "files": ["routes.yaml"]
+    "files": ["test_routes.yaml"]
   },
   "request_id": {
     "header": "X-Request-ID",

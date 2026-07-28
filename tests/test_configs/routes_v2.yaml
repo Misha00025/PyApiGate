@@ -1,0 +1,9 @@
+base_path: "/v2"
+services:
+  api:
+    base_url: "http://api-v2:8000"
+routes:
+  - path: /users
+    methods: [GET]
+    handler: users_handler
+    auth: required

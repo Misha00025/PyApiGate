@@ -25,61 +25,67 @@ logger = logging.getLogger(__name__)
 
 def bootstrap(
     app: FastAPI,
-    config_path: Optional[str] = None,
-) -> GatewayConfig:
+    config_paths: Optional[list[str]] = None,
+) -> list[GatewayConfig]:
     """
-    Loads config and registers routes in the FastAPI application.
+    Loads one or more YAML configs and registers routes in FastAPI.
+
+    Each config file is self-contained (base_path, auth, services, routes).
 
     Args:
         app: FastAPI application.
-        config_path: Path to YAML file. If None — looks for routes.yaml in the service root.
+        config_paths: List of paths to YAML files. If None — defaults to
+                      ["configs/routes.yaml"].
 
     Returns:
-        GatewayConfig — loaded configuration.
+        List of loaded GatewayConfig objects.
     """
-    # Healthcheck endpoint — no auth, no proxy, available at /health
+    if config_paths is None:
+        config_paths = ["configs/routes.yaml"]
+
+    # Healthcheck — один на всё приложение
     @app.get("/health", include_in_schema=False)
     async def _health():
         return {"status": "ok"}
 
-    # Load config
-    config = load_config(config_path)
-    logger.info("Loaded %d routes from config", len(config.routes))
+    loaded_configs = []
 
-    # Create auth strategy from config
+    for path in config_paths:
+        logger.info("Loading config: %s", path)
+        config = load_config(path)
+        loaded_configs.append(config)
 
-    if config.auth.strategy and config.auth.strategy != "none":
-        strategy = auth_strategy_registry.create(config.auth.strategy, config.auth)
-        if strategy is None:
-            logger.warning("Unknown auth strategy '%s', auth disabled", config.auth.strategy)
-        else:
-            logger.info("Using auth strategy: %s", config.auth.strategy)
-    else:
+        # Auth strategy
         strategy = None
+        if config.auth.strategy and config.auth.strategy != "none":
+            strategy = auth_strategy_registry.create(config.auth.strategy, config.auth)
+            if strategy is None:
+                logger.warning("Unknown auth strategy '%s' in %s, auth disabled", config.auth.strategy, path)
+            else:
+                logger.info("  auth: %s", config.auth.strategy)
+        else:
+            logger.info("  auth: none")
 
-    # Create ServiceRegistry
-    services_dict = {}
-    for name, svc in config.services.items():
-        services_dict[name] = {
-            "base_url": svc.base_url,
-            "timeout": svc.timeout,
-        }
-    registry = ServiceRegistry(services_dict)
-    logger.info("Registered services: %s", list(services_dict.keys()))
+        # ServiceRegistry
+        services_dict = {}
+        for name, svc in config.services.items():
+            services_dict[name] = {
+                "base_url": svc.base_url,
+                "timeout": svc.timeout,
+            }
+        registry = ServiceRegistry(services_dict)
+        logger.info("  services: %s", list(services_dict.keys()))
 
-    # Create APIRouter
-    bp_name = "engine_api"
-    router = APIRouter(prefix=config.base_path or "")
+        # APIRouter со своим prefix
+        router = APIRouter(prefix=config.base_path or "")
 
-    # Register each route
-    for route in config.routes:
-        _register_route(router, route, registry, strategy)
+        for route in config.routes:
+            _register_route(router, route, registry, strategy)
 
-    # Register router in the app
-    app.include_router(router)
-    logger.info("Router '%s' registered at '%s'", bp_name, config.base_path or "/")
+        app.include_router(router)
+        logger.info("  registered %d routes at '%s'", len(config.routes), config.base_path or "/")
 
-    return config
+    return loaded_configs
 
 
 def _register_route(

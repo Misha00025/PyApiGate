@@ -13,10 +13,10 @@ The dev server starts at `http://localhost:5000`.
 ## ASGI (Production)
 
 ```bash
-CONFIG_PATH=/app/configs/routes.yaml uvicorn asgi:app --host 0.0.0.0 --port 5000
+APP_CONFIG=/app/configs/app.json uvicorn asgi:app --host 0.0.0.0 --port 5000
 ```
 
-`asgi.py` reads the `CONFIG_PATH` environment variable to locate the route configuration.
+`asgi.py` reads the `APP_CONFIG` environment variable to locate the application configuration.
 
 ## Docker
 
@@ -24,7 +24,7 @@ CONFIG_PATH=/app/configs/routes.yaml uvicorn asgi:app --host 0.0.0.0 --port 5000
 docker build -t pyapi-gate .
 docker run -p 5000:5000 \
   -v ./configs:/app/configs:ro \
-  -e CONFIG_PATH=/app/configs/routes.yaml \
+  -e APP_CONFIG=/app/configs/app.json \
   pyapi-gate
 ```
 

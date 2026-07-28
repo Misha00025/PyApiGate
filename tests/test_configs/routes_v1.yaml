@@ -1,0 +1,9 @@
+base_path: "/v1"
+services:
+  api:
+    base_url: "http://api-v1:8000"
+routes:
+  - path: /hello
+    methods: [GET]
+    handler: hello_handler
+    auth: none
