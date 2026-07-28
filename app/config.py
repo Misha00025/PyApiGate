@@ -9,7 +9,7 @@ import json
 import os
 import logging
 import shutil
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +18,13 @@ CONFIG_DIR = "configs"
 CONFIG_FILE = "app.json"
 
 
-def load_app_config(config_dir: str = CONFIG_DIR) -> dict[str, Any]:
+def load_app_config(config_path: Optional[str] = None) -> dict[str, Any]:
     """
     Loads app configuration, merging user config over defaults.
 
-    - Reads defaults from configs_default/app.json
-    - If configs/app.json doesn't exist, creates it from defaults
-    - Reads user config from configs/app.json, merges over defaults
-    - Validates required fields
+    Args:
+        config_path: Optional path to app.json. If None — uses
+                     configs/app.json (with fallback to configs_default/app.json).
 
     Returns:
         Merged configuration dict.
@@ -39,11 +38,16 @@ def load_app_config(config_dir: str = CONFIG_DIR) -> dict[str, Any]:
         logger.warning("Default config not found at %s, using empty defaults", default_path)
         defaults = {}
 
-    # 2. Ensure user config exists
-    user_path = os.path.join(config_dir, CONFIG_FILE)
-    if not os.path.exists(user_path):
+    # 2. Determine user config path
+    if config_path is None:
+        user_path = os.path.join(CONFIG_DIR, CONFIG_FILE)
+    else:
+        user_path = config_path
+
+    # 3. Ensure user config exists (only if using default path)
+    if config_path is None and not os.path.exists(user_path):
         try:
-            os.makedirs(config_dir, exist_ok=True)
+            os.makedirs(CONFIG_DIR, exist_ok=True)
             shutil.copy2(default_path, user_path)
             logger.warning(
                 "Created %s from default. Edit it to configure the gateway.",
@@ -52,7 +56,7 @@ def load_app_config(config_dir: str = CONFIG_DIR) -> dict[str, Any]:
         except Exception as e:
             logger.warning("Failed to create %s: %s", user_path, e)
 
-    # 3. Load user config
+    # 4. Load user config
     user_config = {}
     if os.path.exists(user_path):
         try:
@@ -61,7 +65,7 @@ def load_app_config(config_dir: str = CONFIG_DIR) -> dict[str, Any]:
         except (json.JSONDecodeError, IOError) as e:
             logger.warning("Failed to load %s: %s. Using defaults.", user_path, e)
 
-    # 4. Merge (shallow merge at top level)
+    # 5. Merge (shallow merge at top level)
     merged = dict(defaults)
     for key, value in user_config.items():
         if isinstance(value, dict) and key in merged and isinstance(merged[key], dict):
@@ -69,7 +73,7 @@ def load_app_config(config_dir: str = CONFIG_DIR) -> dict[str, Any]:
         else:
             merged[key] = value
 
-    # 5. Validate
+    # 6. Validate
     _validate_config(merged)
 
     return merged

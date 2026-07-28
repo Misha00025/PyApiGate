@@ -17,6 +17,9 @@ Application settings are stored in `configs/app.json`. It is created automatical
       "backup_count": 7
     }
   },
+  "routes": {
+    "files": ["routes.yaml"]
+  },
   "request_id": {
     "header": "X-Request-ID",
     "generate_if_missing": true
@@ -32,6 +35,7 @@ Application settings are stored in `configs/app.json`. It is created automatical
 | `logging.file` | Path to log file (`null` = stdout only) |
 | `logging.format` | Log message format |
 | `logging.rotation` | Log rotation settings (`null` = no rotation) |
+| `routes.files` | List of YAML route configuration files to load. Each file is self-contained (base_path, auth, services, routes). Paths are relative to the app.json directory. If omitted, defaults to `["routes.yaml"]`. |
 
 #### `logging.rotation` (optional)
 

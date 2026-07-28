@@ -255,7 +255,7 @@ class TestAppConfig:
         cfg_module.CONFIG_DIR = str(config_dir)
 
         try:
-            result = load_app_config(str(config_dir))
+            result = load_app_config(str(config_dir / "app.json"))
             assert result["logging"]["level"] == "DEBUG"
             assert result["logging"]["format"] == "default"
             assert result["request_id"]["header"] == "X-Request-ID"
@@ -281,12 +281,40 @@ class TestAppConfig:
         cfg_module.CONFIG_DIR = str(config_dir)
 
         try:
-            result = load_app_config(str(config_dir))
+            # Passing None triggers auto-creation from default
+            result = load_app_config(None)
             assert (config_dir / "app.json").exists()
             assert result["logging"]["level"] == "INFO"
         finally:
             cfg_module.DEFAULTS_DIR = old_defaults
             cfg_module.CONFIG_DIR = old_config
+
+class TestAppConfigMultiRoutes:
+    def test_routes_files_default_when_missing(self, tmp_path):
+        """When routes.files is missing, default to single file."""
+        config = {
+            "logging": {"level": "INFO"},
+            "request_id": {"header": "X-Request-ID"},
+        }
+        config_file = tmp_path / "app.json"
+        config_file.write_text(json.dumps(config))
+
+        result = load_app_config(str(config_file))
+        # Defaults include routes.files, so it's present
+        assert result.get("routes", {}).get("files") == ["routes.yaml"]
+
+    def test_routes_files_list(self, tmp_path):
+        config = {
+            "logging": {"level": "INFO"},
+            "routes": {"files": ["routes.yaml", "routes_v2.yaml"]},
+            "request_id": {"header": "X-Request-ID"},
+        }
+        config_file = tmp_path / "app.json"
+        config_file.write_text(json.dumps(config))
+
+        result = load_app_config(str(config_file))
+        assert result["routes"]["files"] == ["routes.yaml", "routes_v2.yaml"]
+
 
     def test_invalid_json_falls_back_to_defaults(self, tmp_path):
         defaults_dir = tmp_path / "configs_default"
@@ -304,7 +332,7 @@ class TestAppConfig:
         cfg_module.CONFIG_DIR = str(config_dir)
 
         try:
-            result = load_app_config(str(config_dir))
+            result = load_app_config(str(config_dir / "app.json"))
             assert result["logging"]["level"] == "INFO"
         finally:
             cfg_module.DEFAULTS_DIR = old_defaults

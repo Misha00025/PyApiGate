@@ -8,7 +8,7 @@ import handlers  # noqa: F401 — register handlers before create_app
 from app import create_app
 
 app = create_app(
-    config_path=os.environ.get("CONFIG_PATH"),
+    config_path=os.environ.get("APP_CONFIG"),
 )
 
 if __name__ == "__main__":

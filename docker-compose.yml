@@ -9,7 +9,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - CONFIG_PATH=/app/configs/routes.yaml
+      - APP_CONFIG=/app/configs/app.json
     volumes:
       # Конфигурация роутов (read-only)
       - ./configs:/app/configs:ro
