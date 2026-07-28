@@ -9,6 +9,8 @@ from typing import Optional
 
 from fastapi import FastAPI
 
+from app.config import CONFIG_DIR
+
 import handlers  # noqa: F401 — register custom handlers
 
 
@@ -55,17 +57,18 @@ def create_app(
     # Determine which route config files to load
     route_files = app_cfg.get("routes", {}).get("files")
     if route_files is None:
-        route_files = ["configs/routes.yaml"]
+        route_files = ["routes.yaml"]
 
     # Resolve relative paths relative to the app config directory
     if config_path:
         base_dir = os.path.dirname(config_path)
-        config_paths = [
-            os.path.join(base_dir, f) if not os.path.isabs(f) else f
-            for f in route_files
-        ]
     else:
-        config_paths = route_files
+        base_dir = CONFIG_DIR
+
+    config_paths = [
+        os.path.join(base_dir, f) if not os.path.isabs(f) else f
+        for f in route_files
+    ]
 
     from app.engine.bootstrap import bootstrap
     bootstrap(application, config_paths=config_paths)
