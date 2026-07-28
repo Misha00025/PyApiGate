@@ -13,6 +13,7 @@
   "routes": {
     "files": ["routes.yaml"]
   },
+  "cors": null,
   "request_id": {
     "header": "X-Request-ID",
     "generate_if_missing": true

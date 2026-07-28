@@ -19,7 +19,8 @@ def create_app(
     Creates and configures a FastAPI application with the declarative engine.
 
     Args:
-        config_path: Path to app.json. If None — looks for configs/app.json.
+        config_path: Path to app.json. If None — uses APP_CONFIG env var,
+                     then falls back to configs/app.json.
 
     Returns:
         Configured FastAPI application.
@@ -28,10 +29,26 @@ def create_app(
     from app.config import load_app_config
     from app.logging_config import setup_logging
 
+    if config_path is None:
+        config_path = os.environ.get("APP_CONFIG")
+
     app_cfg = load_app_config(config_path)
     setup_logging(app_cfg)
 
     application = FastAPI(title="PyApiGate")
+
+    # CORS middleware (optional)
+    cors_cfg = app_cfg.get("cors")
+    if isinstance(cors_cfg, dict):
+        from starlette.middleware.cors import CORSMiddleware
+
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_cfg.get("allow_origins", ["*"]),
+            allow_methods=cors_cfg.get("allow_methods", ["*"]),
+            allow_headers=cors_cfg.get("allow_headers", ["*"]),
+            allow_credentials=cors_cfg.get("allow_credentials", False),
+        )
 
     from app.engine.bootstrap import bootstrap
 

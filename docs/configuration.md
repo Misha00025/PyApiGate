@@ -36,6 +36,7 @@ Application settings are stored in `configs/app.json`. It is created automatical
 | `logging.format` | Log message format |
 | `logging.rotation` | Log rotation settings (`null` = no rotation) |
 | `routes.files` | List of YAML route configuration files to load. Each file is self-contained (base_path, auth, services, routes). Paths are relative to the app.json directory. If omitted, defaults to `["routes.yaml"]`. |
+| `cors` | `null` or object | Настройки CORS. `null` или отсутствует — CORS выключен |
 
 #### `logging.rotation` (optional)
 
@@ -79,6 +80,32 @@ Application settings are stored in `configs/app.json`. It is created automatical
 ```
 
 **Важно:** `logging.file` должен быть указан, чтобы ротация работала.
+
+#### `cors` (optional)
+
+CORS middleware для кросс-доменных запросов. Если `null` или отсутствует — не добавляется.
+
+| Поле | Тип | Дефолт | Описание |
+|------|-----|--------|----------|
+| `allow_origins` | `list[str]` | `["*"]` | Разрешённые origin'ы |
+| `allow_methods` | `list[str]` | `["*"]` | Разрешённые HTTP методы |
+| `allow_headers` | `list[str]` | `["*"]` | Разрешённые заголовки |
+| `allow_credentials` | `bool` | `false` | Поддержка credentials (cookies, Authorization headers) |
+
+Пример:
+
+```json
+{
+  "cors": {
+    "allow_origins": ["https://app.example.com"],
+    "allow_methods": ["GET", "POST", "PUT", "DELETE"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "allow_credentials": true
+  }
+}
+```
+
+**Важно:** Если указываешь конкретные `allow_origins` и включаешь `allow_credentials: true`, то origin'ы должны быть явными (без `"*"`).
 | `request_id.header` | Header name for request ID |
 | `request_id.generate_if_missing` | Auto-generate a UUID if the header is missing |
 
