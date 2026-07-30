@@ -68,6 +68,8 @@ class RouteConfig:
     """
     proxy: Optional[ProxyConfig] = None
     """Proxy configuration (if the route type is PROXY)."""
+    response_handler: Optional[str] = None
+    """Response handler name, called after proxy execution to modify backend response."""
     handler: Optional[str] = None
     """Response handler name (if the route type is HANDLER)."""
     params: Optional[ParamsConfig] = None

@@ -21,70 +21,55 @@ from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
 from app.engine.status import bad_gateway, not_implemented
 
 
-async def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
-    """
-    Executes a proxy request to a backend service.
+async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> http_requests.Response:
+    """Execute proxy request, return raw requests.Response.
 
-    1. Substitutes path_params into the target URL
-    2. Injects query/body parameters
-    3. Makes the HTTP request
-    4. Returns a Flask Response with backend body and status
-
-    Args:
-        route: Route configuration.
-        ctx: Request context with path_params, jwt, services.
-
-    Returns:
-        Flask Response.
+    Raises:
+        ValueError: if proxy config is missing or service unknown
+        http_requests.RequestException: on upstream errors
     """
     proxy_cfg = route.proxy
     if proxy_cfg is None:
-        return not_implemented("No proxy config")
+        raise ValueError("No proxy config")
 
-    # 1. Substitute path_params into the target path
     target_path = _resolve_path(proxy_cfg.path, ctx.path_params)
 
-    # 2. Get the service client
     client = ctx.services.get_client(proxy_cfg.service)
     if client is None:
-        return not_implemented(f"Unknown service: {proxy_cfg.service}")
+        raise ValueError(f"Unknown service: {proxy_cfg.service}")
 
-    # 3. Build request parameters
     method = ctx.request.method.lower()
     headers = _build_headers(ctx, proxy_cfg)
     params = _build_query_params(route, ctx)
     body = await _build_body(route, ctx)
 
-    # 4. Execute the request
+    if proxy_cfg.skip_body or method in ("get", "delete"):
+        resp = client.request(method.upper(), target_path, headers=headers, params=params)
+    elif ctx.request.is_json:
+        resp = client.request(method.upper(), target_path, headers=headers, params=params, json=body)
+    else:
+        data = ctx.request.body if ctx.request.body else None
+        resp = client.request(method.upper(), target_path, headers=headers, params=params, data=data)
+
+    return resp
+
+
+async def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
+    """Executes a proxy request and returns a Starlette Response.
+
+    Backwards-compatible wrapper around _execute_proxy_raw.
+    """
+    proxy_cfg = route.proxy
+    if proxy_cfg is None:
+        return not_implemented("No proxy config")
+
     try:
-        if proxy_cfg.skip_body or method in ("get", "delete"):
-            resp = client.request(
-                method.upper(),
-                target_path,
-                headers=headers,
-                params=params,
-            )
-        elif ctx.request.is_json:
-            resp = client.request(
-                method.upper(),
-                target_path,
-                headers=headers,
-                params=params,
-                json=body,
-            )
-        else:
-            data = ctx.request.body if ctx.request.body else None
-            resp = client.request(
-                method.upper(),
-                target_path,
-                headers=headers,
-                params=params,
-                data=data,
-            )
+        resp = await _execute_proxy_raw(route, ctx)
+    except ValueError as e:
+        return not_implemented(str(e))
     except http_requests.RequestException as e:
         return bad_gateway(f"Upstream error: {e}")
 
-    # 5. Return the response
     return _to_response(resp)
 
 

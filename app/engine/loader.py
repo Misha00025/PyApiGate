@@ -173,6 +173,9 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
     # Handler
     handler = route_def.get("handler")
 
+    # Response handler (for proxy routes)
+    response_handler = route_def.get("response_handler")
+
     # Params
     params = None
     if "params" in route_def:
@@ -197,6 +200,7 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
             auth=auth,
             access=access,
             proxy=proxy,
+            response_handler=response_handler,
             handler=handler,
             params=params,
             response=response,

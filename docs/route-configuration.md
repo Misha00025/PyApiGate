@@ -71,7 +71,26 @@ Execute custom response handler logic.
   auth: required
 ```
 
-> **Note:** `handler` and `proxy` are mutually exclusive. If both are set, `handler` takes priority and the route will not proxy.
+> **Note:** `handler` and `proxy` are mutually exclusive. If both are set, `handler` takes priority and the route will not proxy. For proxy routes that need response modification, use `response_handler` instead.
+
+## Proxy Route with Response Handler
+
+Execute a response handler **after** the proxy request to modify the backend response.
+
+```yaml
+- path: /auth/token
+  methods: [POST]
+  proxy:
+    service: auth
+    path: /token
+  response_handler: wrap_auth_response
+  response:
+    wrap: data
+```
+
+The pipeline is: `proxy → response_handler → wrap` — the handler receives the backend response via `ctx.response` (a `ProxyResponseBuilder`) and can modify it using controlled methods. See [Proxy Response Handlers](writing-handlers.md#proxy-response-handlers).
+
+> **Note:** Unlike `handler`, `response_handler` does **not** replace `proxy` — it complements it. The proxy request is always executed, and the handler only modifies the response.
 
 ## Multi-Method Routes
 
@@ -108,6 +127,7 @@ Flask-style `<int:user_id>` notation is automatically converted to `{user_id}`.
 | `auth` | `"required"` / `"none"` | `"required"` | Whether JWT is required |
 | `access` | string | `null` | Access handler name |
 | `proxy` | object | `null` | Proxy configuration |
+| `response_handler` | string | `null` | Response handler name for proxy routes — see [Proxy Response Handlers](writing-handlers.md#proxy-response-handlers) |
 | `handler` | string | `null` | Response handler name |
 | `params` | object | `null` | Parameter injection (see [Parameter Injection](parameter-injection.md)) |
 | `response` | object | `null` | Response configuration |

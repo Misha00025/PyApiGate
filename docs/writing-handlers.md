@@ -44,6 +44,60 @@ async def handle_profile(ctx):
 - Use `ctx.services.<name>.get/post/put/patch/delete(...)` to call backend services.
 - Combine multiple service calls in a single handler (composite handler).
 
+## Proxy Response Handlers (asynchronous)
+
+Proxy response handlers modify the backend response **after** a proxy request. They are configured via `response_handler` on a proxy route.
+
+The handler does **not** return a response — it mutates `ctx.response` (a `ProxyResponseBuilder`) which provides controlled methods for modifications.
+
+```python
+from app.engine.registry import register_response_handler
+from app.engine.context import RouteContext
+
+@register_response_handler("wrap_auth_response")
+async def handle_wrap_auth(ctx: RouteContext):
+    body = ctx.response.body
+
+    # Keep only specific fields
+    ctx.response.keep_fields(["access_token", "expires_in"])
+
+    # Add Set-Cookie from a field in the backend response
+    ctx.response.set_cookie(
+        "refresh_token", body["refresh_token"],
+        httponly=True, samesite="strict",
+    )
+
+    # Add a custom header
+    ctx.response.set_header("X-Trace-Id", body.get("trace_id", ""))
+
+    # Response is finalized automatically by the pipeline
+```
+
+### ProxyResponseBuilder API
+
+| Method | Description |
+|--------|-------------|
+| `passthrough()` | Return the original backend response unchanged (ignores all modifications) |
+| `set_status(code)` | Override the HTTP status code |
+| `set_header(key, value)` | Set a response header |
+| `remove_header(key)` | Remove a response header |
+| `set_cookie(key, value, **kwargs)` | Add a `Set-Cookie` header. Supports `httponly`, `secure`, `samesite`, `max_age`, `path`, `domain`, `expires` |
+| `set_body(data)` / `set_json(data)` | Replace the response body entirely (must be JSON-serializable) |
+| `merge_body(data)` | Merge fields into the JSON response body |
+| `keep_fields(fields)` | Keep only the specified top-level fields in the JSON body |
+| `remove_fields(fields)` | Remove the specified top-level fields from the JSON body |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ctx.response.body` | `dict`, `list`, or `bytes` | Parsed JSON body of the backend response (lazy, cached) |
+| `ctx.response.status_code` | `int` | Current status code (may have been modified) |
+
+> **Note:** The handler must not call backend services directly — the proxy request has already been made. Use the builder methods only.
+
+> **Note:** If both `response_handler` and `response.wrap` are configured, `response.wrap` is applied **after** the handler, wrapping the modified response.
+
 ## RouteContext API
 
 | Attribute | Type | Description |
@@ -52,6 +106,7 @@ async def handle_profile(ctx):
 | `ctx.path_params` | `dict` | URL parameters (always a `dict`) |
 | `ctx.jwt` | `dict` or `None` | Decoded JWT payload |
 | `ctx.services` | `ServiceRegistry` | HTTP clients for backend services |
+| `ctx.response` | `ProxyResponseBuilder` or `None` | Builder for modifying proxy responses (only set during proxy response handler) |
 | `ctx.state` | `dict` | Mutable storage between pipeline stages |
 
 ## GatewayRequest API

@@ -5,6 +5,9 @@ Processing order:
 1. Auth — invoke AuthStrategy (passed from outside)
 2. Access — invoke access handler (if specified)
 3. Execute — proxy to backend or invoke response handler
+3b. Response Handler — invoke registered handler on proxy response (if specified)
+4. Wrap — wrap response body in a key (if configured)
+5. Log — log the request result
 """
 
 from __future__ import annotations
@@ -96,19 +99,49 @@ async def execute_pipeline(
         # Step 3: Execute (async)
         try:
             if route.handler is not None:
+                # Registered response handler (non-proxy route)
                 handler = response_handler_registry.get(route.handler)
                 if handler is None:
                     logger.error("Unknown response handler '%s': %s %s [%s]", route.handler, method, path, req_id)
                     return not_implemented(f"Unknown response handler: {route.handler}")
                 response = await handler(ctx)
-            else:
+            elif route.response_handler is None:
+                # Proxy route WITHOUT response_handler — direct proxy
                 from app.engine.proxy import execute_proxy
                 response = await execute_proxy(route, ctx)
+            # else: proxy route WITH response_handler — handled in Step 3b below
         except Exception:
             logger.exception("Handler crashed: %s %s [%s]", method, path, req_id)
             return bad_gateway("Upstream error")
 
-        # Step 3.5: Response wrapping (sync)
+        # Step 3b: Response handler for proxy routes
+        if route.response_handler is not None and route.proxy is not None:
+            from app.engine.proxy import _execute_proxy_raw
+            from app.engine.proxy_response import ProxyResponseBuilder
+
+            handler = response_handler_registry.get(route.response_handler)
+            if handler is None:
+                logger.error(
+                    "Unknown response handler '%s': %s %s [%s]",
+                    route.response_handler, method, path, req_id,
+                )
+                return not_implemented(f"Unknown response handler: {route.response_handler}")
+
+            try:
+                raw_resp = await _execute_proxy_raw(route, ctx)
+                ctx.response = ProxyResponseBuilder(raw_resp)
+                await handler(ctx)
+                response = ctx.response.finalize()
+            except ValueError as e:
+                return not_implemented(str(e))
+            except Exception:
+                logger.exception(
+                    "Response handler '%s' crashed: %s %s [%s]",
+                    route.response_handler, method, path, req_id,
+                )
+                return bad_gateway("Upstream error")
+
+        # Step 4: Response wrapping (sync)
         if route.response and route.response.wrap:
             from fastapi.responses import JSONResponse
             try:
