@@ -88,7 +88,7 @@ Execute a response handler **after** the proxy request to modify the backend res
     wrap: data
 ```
 
-The pipeline is: `proxy → response_handler → wrap` — the handler receives the backend response via `ctx.response` (a `ProxyResponseBuilder`) and can modify it using controlled methods. See [Proxy Response Handlers](writing-handlers.md#proxy-response-handlers).
+The pipeline is: `proxy → response_handler → wrap` — the handler modifies the response via `ctx.response` (a `ResponseBuilder`). See [ResponseBuilder](writing-handlers.md#responsebuilder--modifying-any-response-asynchronous).
 
 > **Note:** Unlike `handler`, `response_handler` does **not** replace `proxy` — it complements it. The proxy request is always executed, and the handler only modifies the response.
 

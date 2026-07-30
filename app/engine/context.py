@@ -108,7 +108,7 @@ class RouteContext:
     services: Any = None
     """ServiceRegistry with HTTP clients for backends."""
     response: Optional[Any] = None
-    """ProxyResponseBuilder for modifying backend responses in response_handler."""
+    """ResponseBuilder for modifying pipeline responses. Available to all handlers."""
     state: dict[str, Any] = field(default_factory=dict)
     """Mutable storage for passing data between pipeline stages."""
 

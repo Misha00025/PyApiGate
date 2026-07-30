@@ -12,7 +12,7 @@ Every request passes through a pipeline in `execute_pipeline()`.
 | 4 | Access | `route.access` is set | Calls the access handler. `deny()` → **403** with `X-Deny-Reason` header. |
 | 5 | Execute | `route.handler` is set | Calls the response handler. **If both `handler` and `proxy` are set, `handler` takes priority and `proxy` is ignored.** |
 | 5a | Execute | only `proxy` is set (no `response_handler`) | `execute_proxy()` — proxies the request to the backend service. Converts to Starlette Response. |
-| 5b | Proxy Response Handler | `route.response_handler` is set (requires `proxy`) | `_execute_proxy_raw()` → wraps in `ProxyResponseBuilder` → calls response handler → `finalize()`. The handler modifies the response via `ctx.response` builder methods. |
+| 5b | Proxy Response Handler | `route.response_handler` is set (requires `proxy`) | `_execute_proxy_raw()` → `ctx.response.set_base(raw)` → calls response handler → `ctx.response.finalize()`. The handler modifies the response via `ctx.response` builder methods. |
 | 6 | Wrap | `route.response.wrap` is set | Wraps the JSON response in `{"key": data}`. |
 | 7 | Log | always | `INFO: GET /path -> 200 [req_id] (0.123s)` |
 

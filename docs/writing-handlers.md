@@ -44,36 +44,47 @@ async def handle_profile(ctx):
 - Use `ctx.services.<name>.get/post/put/patch/delete(...)` to call backend services.
 - Combine multiple service calls in a single handler (composite handler).
 
-## Proxy Response Handlers (asynchronous)
+## ResponseBuilder — Modifying Any Response (asynchronous)
 
-Proxy response handlers modify the backend response **after** a proxy request. They are configured via `response_handler` on a proxy route.
+`ctx.response` (a `ResponseBuilder`) is initialized at the start of every request pipeline and is available to **all** handlers — access handlers, response handlers, and proxy response handlers alike.
 
-The handler does **not** return a response — it mutates `ctx.response` (a `ProxyResponseBuilder`) which provides controlled methods for modifications.
+Any handler can accumulate modifications (headers, cookies, body transformations) via `ctx.response`. At the end of the pipeline, modifications are applied automatically.
+
+For **proxy routes with `response_handler`**, the handler mutates `ctx.response` directly (no return value needed) and the pipeline calls `ctx.response.finalize()` to build the final response.
+
+For **all other routes** (handler routes, plain proxy routes), modifications are applied via `ctx.response.apply_to()` after the execute step.
 
 ```python
 from app.engine.registry import register_response_handler
 from app.engine.context import RouteContext
 
+# Example 1: Proxy route with response_handler
 @register_response_handler("wrap_auth_response")
 async def handle_wrap_auth(ctx: RouteContext):
-    body = ctx.response.body
+    body = ctx.response.body  # available after proxy execution
 
-    # Keep only specific fields
     ctx.response.keep_fields(["access_token", "expires_in"])
-
-    # Add Set-Cookie from a field in the backend response
     ctx.response.set_cookie(
         "refresh_token", body["refresh_token"],
         httponly=True, samesite="strict",
     )
-
-    # Add a custom header
     ctx.response.set_header("X-Trace-Id", body.get("trace_id", ""))
+    # No return — pipeline calls ctx.response.finalize()
 
-    # Response is finalized automatically by the pipeline
+# Example 2: Access handler setting a header
+@register_access_handler("audit")
+def audit_handler(ctx: RouteContext):
+    ctx.response.set_header("X-Audit-Log", ctx.jwt.get("sub", "?"))
+    return ctx.allow()
+
+# Example 3: Response handler adding a cookie
+@register_response_handler("add_tracking")
+async def add_tracking(ctx: RouteContext):
+    ctx.response.set_cookie("visitor", str(uuid.uuid4()))
+    return JSONResponse({"message": "ok"})  # return still works
 ```
 
-### ProxyResponseBuilder API
+### ResponseBuilder API
 
 | Method | Description |
 |--------|-------------|
@@ -94,7 +105,7 @@ async def handle_wrap_auth(ctx: RouteContext):
 | `ctx.response.body` | `dict`, `list`, or `bytes` | Parsed JSON body of the backend response (lazy, cached) |
 | `ctx.response.status_code` | `int` | Current status code (may have been modified) |
 
-> **Note:** The handler must not call backend services directly — the proxy request has already been made. Use the builder methods only.
+> **Note:** `ctx.response.body` is only available after a proxy request has been executed (i.e., in a proxy response handler). Calling it earlier raises `RuntimeError`.
 
 > **Note:** If both `response_handler` and `response.wrap` are configured, `response.wrap` is applied **after** the handler, wrapping the modified response.
 
@@ -106,7 +117,7 @@ async def handle_wrap_auth(ctx: RouteContext):
 | `ctx.path_params` | `dict` | URL parameters (always a `dict`) |
 | `ctx.jwt` | `dict` or `None` | Decoded JWT payload |
 | `ctx.services` | `ServiceRegistry` | HTTP clients for backend services |
-| `ctx.response` | `ProxyResponseBuilder` or `None` | Builder for modifying proxy responses (only set during proxy response handler) |
+| `ctx.response` | `ResponseBuilder` | Builder for modifying pipeline responses. Available to all handlers. Always initialized at pipeline start. |
 | `ctx.state` | `dict` | Mutable storage between pipeline stages |
 
 ## GatewayRequest API

@@ -22,6 +22,7 @@ from starlette.responses import Response
 
 from app.engine.context import RouteContext
 from app.engine.models import AuthStrategy, RouteConfig
+from app.engine.proxy_response import ResponseBuilder
 from app.engine.registry import (
     access_handler_registry,
     response_handler_registry,
@@ -47,6 +48,9 @@ async def execute_pipeline(
 
     from app.logging_context import set_logging_context, clear_logging_context
     set_logging_context(ctx)
+
+    # Initialize response builder — available to all handlers for modifications
+    ctx.response = ResponseBuilder()
 
     try:
         start = time.monotonic()
@@ -99,47 +103,41 @@ async def execute_pipeline(
         # Step 3: Execute (async)
         try:
             if route.handler is not None:
-                # Registered response handler (non-proxy route)
+                # Standard response handler
                 handler = response_handler_registry.get(route.handler)
                 if handler is None:
                     logger.error("Unknown response handler '%s': %s %s [%s]", route.handler, method, path, req_id)
                     return not_implemented(f"Unknown response handler: {route.handler}")
                 response = await handler(ctx)
-            elif route.response_handler is None:
-                # Proxy route WITHOUT response_handler — direct proxy
+            elif route.response_handler is not None and route.proxy is not None:
+                # Proxy route WITH response_handler
+                from app.engine.proxy import _execute_proxy_raw
+
+                handler = response_handler_registry.get(route.response_handler)
+                if handler is None:
+                    logger.error(
+                        "Unknown response handler '%s': %s %s [%s]",
+                        route.response_handler, method, path, req_id,
+                    )
+                    return not_implemented(f"Unknown response handler: {route.response_handler}")
+
+                raw_resp = await _execute_proxy_raw(route, ctx)
+                ctx.response.set_base(raw_resp)
+                await handler(ctx)
+                response = ctx.response.finalize()
+            else:
+                # Proxy route WITHOUT response_handler (or just proxy)
                 from app.engine.proxy import execute_proxy
                 response = await execute_proxy(route, ctx)
-            # else: proxy route WITH response_handler — handled in Step 3b below
+        except ValueError as e:
+            return not_implemented(str(e))
         except Exception:
             logger.exception("Handler crashed: %s %s [%s]", method, path, req_id)
             return bad_gateway("Upstream error")
 
-        # Step 3b: Response handler for proxy routes
-        if route.response_handler is not None and route.proxy is not None:
-            from app.engine.proxy import _execute_proxy_raw
-            from app.engine.proxy_response import ProxyResponseBuilder
-
-            handler = response_handler_registry.get(route.response_handler)
-            if handler is None:
-                logger.error(
-                    "Unknown response handler '%s': %s %s [%s]",
-                    route.response_handler, method, path, req_id,
-                )
-                return not_implemented(f"Unknown response handler: {route.response_handler}")
-
-            try:
-                raw_resp = await _execute_proxy_raw(route, ctx)
-                ctx.response = ProxyResponseBuilder(raw_resp)
-                await handler(ctx)
-                response = ctx.response.finalize()
-            except ValueError as e:
-                return not_implemented(str(e))
-            except Exception:
-                logger.exception(
-                    "Response handler '%s' crashed: %s %s [%s]",
-                    route.response_handler, method, path, req_id,
-                )
-                return bad_gateway("Upstream error")
+        # Step 3.5: Apply ResponseBuilder modifications (for non-finalized paths)
+        if route.response_handler is None and not ctx.response.is_empty():
+            response = ctx.response.apply_to(response)
 
         # Step 4: Response wrapping (sync)
         if route.response and route.response.wrap:
