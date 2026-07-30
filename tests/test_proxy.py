@@ -199,6 +199,52 @@ class TestResolveSource:
         result = _resolve_source("{jwt.sub}", ctx)
         assert result is None
 
+    def test_cookie_field(self):
+        from unittest.mock import MagicMock
+
+        mock_req = MagicMock()
+        mock_req.cookies = {"sessionid": "abc123"}
+        ctx = RouteContext(
+            request=mock_req,
+            path_params={},
+            jwt=None,
+        )
+        result = _resolve_source("{cookie.sessionid}", ctx)
+        assert result == "abc123"
+
+    def test_cookie_missing_field(self):
+        from unittest.mock import MagicMock
+
+        mock_req = MagicMock()
+        mock_req.cookies = {"sessionid": "abc123"}
+        ctx = RouteContext(
+            request=mock_req,
+            path_params={},
+            jwt=None,
+        )
+        result = _resolve_source("{cookie.nonexistent}", ctx)
+        assert result is None
+
+    def test_state_field(self):
+        ctx = RouteContext(
+            request=None,
+            path_params={},
+            jwt=None,
+            state={"userId": "user_42", "role": "admin"},
+        )
+        result = _resolve_source("{state.userId}", ctx)
+        assert result == "user_42"
+
+    def test_state_missing_field(self):
+        ctx = RouteContext(
+            request=None,
+            path_params={},
+            jwt=None,
+            state={"role": "admin"},
+        )
+        result = _resolve_source("{state.nonexistent}", ctx)
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # _build_query_params

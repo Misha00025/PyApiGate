@@ -124,6 +124,7 @@ async def add_tracking(ctx: RouteContext):
 
 - `ctx.request.method`, `headers`, `query_params`, `url` — proxies to the FastAPI Request
 - `ctx.request.path_params` — copy of `request.path_params` (always a `dict`)
+- `ctx.request.cookies` — `dict[str, str]`, parsed request cookies
 - `ctx.request.body` — `Optional[bytes]`, synchronous access to the cached body
 - `ctx.request.json` — `Optional[Any]`, synchronous access to the cached parsed JSON
 

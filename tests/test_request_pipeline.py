@@ -126,6 +126,33 @@ class TestGatewayRequest:
         gw = await _make_gw(body="{}", content_type="application/json; charset=utf-8")
         assert "json" in gw.content_type
 
+    @pytest.mark.asyncio
+    async def test_cookies_property(self):
+        """cookies property returns parsed Cookie header."""
+        from starlette.datastructures import Headers
+
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "path": "/test",
+            "headers": [
+                (b"cookie", b"sessionid=abc123; theme=dark"),
+            ],
+            "query_string": b"",
+            "client": ("127.0.0.1", 5000),
+            "server": ("127.0.0.1", 5000),
+            "scheme": "http",
+            "asgi": {"version": "3.0"},
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        req = Request(scope, receive=receive)
+        gw = GatewayRequest(req)
+        assert gw.cookies == {"sessionid": "abc123", "theme": "dark"}
+
 
 # ---------------------------------------------------------------------------
 # Pipeline

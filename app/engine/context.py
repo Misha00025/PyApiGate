@@ -76,6 +76,11 @@ class GatewayRequest:
     def is_json(self) -> bool:
         return "json" in self.content_type
 
+    @property
+    def cookies(self) -> dict[str, str]:
+        """Parsed request cookies (from Cookie header)."""
+        return dict(self._req.cookies)
+
 
 class AccessResult:
     """Result of an access handler check."""

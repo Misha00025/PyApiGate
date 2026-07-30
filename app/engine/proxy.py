@@ -163,6 +163,8 @@ def _resolve_source(expr: str, ctx: RouteContext) -> Any:
     - "{jwt.field}" — from JWT payload
     - "{path.field}" — from path parameters
     - "{query.field}" — from request query parameters
+    - "{cookie.field}" — from request cookies
+    - "{state.field}" — from ctx.state (set by auth strategies/access handlers)
     - "literal" — returned as-is
     """
     if expr.startswith("{") and expr.endswith("}"):
@@ -178,6 +180,10 @@ def _resolve_source(expr: str, ctx: RouteContext) -> Any:
                 return ctx.path_params.get(key)
             elif source == "query":
                 return ctx.request.query_params.get(key)
+            elif source == "cookie":
+                return ctx.request.cookies.get(key)
+            elif source == "state":
+                return ctx.state.get(key)
     return expr
 
 

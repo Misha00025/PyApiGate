@@ -9,6 +9,8 @@ Parameters from JWT payload, URL path, and query parameters can be injected into
 | `{jwt.field}` | Value from JWT payload. `{jwt.userId}` searches for `userId`, falls back to `sub` |
 | `{path.field}` | Value from `path_params` |
 | `{query.field}` | Value from the incoming request's query parameters |
+| `{cookie.field}` | Value from the incoming request's cookies |
+| `{state.field}` | Value from `ctx.state` (set by auth strategies, access handlers, or previous pipeline stages) |
 | `"literal"` | Static string passed as-is |
 
 ## params.query
