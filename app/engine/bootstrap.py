@@ -34,15 +34,11 @@ def bootstrap(
 
     Args:
         app: FastAPI application.
-        config_paths: List of paths to YAML files. If None — defaults to
-                      ["configs/routes.yaml"].
+        config_paths: List of paths to YAML files.
 
     Returns:
         List of loaded GatewayConfig objects.
     """
-    if config_paths is None:
-        config_paths = ["configs/routes.yaml"]
-
     # Healthcheck — один на всё приложение
     @app.get("/health", include_in_schema=False)
     async def _health():

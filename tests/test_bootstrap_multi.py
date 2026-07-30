@@ -29,15 +29,6 @@ class TestBootstrapMulti:
         assert len(configs[1].routes) == 1
         assert configs[1].routes[0].path == "/users"
 
-    def test_single_config_backward_compat(self, monkeypatch):
-        """None defaults to single configs/routes.yaml."""
-        monkeypatch.setenv("AUTH_SERVICE_URL", "http://auth:8000")
-        monkeypatch.setenv("USERS_SERVICE_URL", "http://users:8000")
-        monkeypatch.setenv("CAMPAIGN_SERVICE_URL", "http://campaign:8000")
-        app = FastAPI()
-        configs = bootstrap(app, config_paths=None)
-        assert len(configs) >= 0  # just check it doesn't crash
-
     def test_empty_list(self):
         """Empty list doesn't crash."""
         app = FastAPI()
