@@ -9,7 +9,8 @@ Contains:
 from __future__ import annotations
 
 from typing import Any, Callable, Optional
-import requests
+
+import httpx
 
 
 class ServiceClient:
@@ -17,31 +18,31 @@ class ServiceClient:
 
     def __init__(self, base_url: str, timeout: int = 30):
         self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=httpx.Timeout(timeout),
+        )
 
-    def _build_url(self, path: str) -> str:
-        path = path.lstrip("/")
-        return f"{self.base_url}/{path}"
+    async def request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        return await self._client.request(method, path, **kwargs)
 
-    def request(self, method: str, path: str, **kwargs) -> requests.Response:
-        url = self._build_url(path)
-        kwargs.setdefault("timeout", self.timeout)
-        return requests.request(method, url, **kwargs)
+    async def get(self, path: str, **kwargs) -> httpx.Response:
+        return await self.request("GET", path, **kwargs)
 
-    def get(self, path: str, **kwargs) -> requests.Response:
-        return self.request("GET", path, **kwargs)
+    async def post(self, path: str, **kwargs) -> httpx.Response:
+        return await self.request("POST", path, **kwargs)
 
-    def post(self, path: str, **kwargs) -> requests.Response:
-        return self.request("POST", path, **kwargs)
+    async def put(self, path: str, **kwargs) -> httpx.Response:
+        return await self.request("PUT", path, **kwargs)
 
-    def put(self, path: str, **kwargs) -> requests.Response:
-        return self.request("PUT", path, **kwargs)
+    async def patch(self, path: str, **kwargs) -> httpx.Response:
+        return await self.request("PATCH", path, **kwargs)
 
-    def patch(self, path: str, **kwargs) -> requests.Response:
-        return self.request("PATCH", path, **kwargs)
+    async def delete(self, path: str, **kwargs) -> httpx.Response:
+        return await self.request("DELETE", path, **kwargs)
 
-    def delete(self, path: str, **kwargs) -> requests.Response:
-        return self.request("DELETE", path, **kwargs)
+    async def close(self):
+        await self._client.aclose()
 
 
 class ServiceRegistry:
@@ -70,6 +71,10 @@ class ServiceRegistry:
     def get_client(self, name: str) -> Optional[ServiceClient]:
         """Get a service client by name (no exception)."""
         return self._services.get(name)
+
+    async def close_all(self):
+        for client in self._services.values():
+            await client.close()
 
 
 class Registry:

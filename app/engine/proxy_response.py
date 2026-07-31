@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
-import requests
+import httpx
 
 
 class ResponseBuilder:
@@ -33,7 +33,7 @@ class ResponseBuilder:
     """
 
     def __init__(self):
-        self._base: Optional[requests.Response] = None
+        self._base: Optional[httpx.Response] = None
         self._status_code: Optional[int] = None
         self._headers: dict[str, str] = {}
         self._removed_headers: set[str] = set()
@@ -46,7 +46,7 @@ class ResponseBuilder:
 
     # ── base ─────────────────────────────────────────
 
-    def set_base(self, raw: requests.Response) -> None:
+    def set_base(self, raw: httpx.Response) -> None:
         """Set the backend response as source for body operations.
 
         Called by pipeline after _execute_proxy_raw() for proxy + response_handler routes.
@@ -282,8 +282,8 @@ class ResponseBuilder:
 
         return response
 
-    def _raw_to_response(self, resp: requests.Response) -> Response:
-        """Convert raw requests.Response to Starlette Response (passthrough path)."""
+    def _raw_to_response(self, resp: httpx.Response) -> Response:
+        """Convert raw httpx.Response to Starlette Response (passthrough path)."""
         content_type = resp.headers.get("Content-Type", "application/json")
         try:
             data = resp.json()

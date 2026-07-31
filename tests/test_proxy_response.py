@@ -6,10 +6,10 @@ accumulate modifications via ctx.response modification methods.
 """
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import requests
+import httpx
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 from starlette.requests import Request
@@ -30,10 +30,9 @@ from app.engine.registry import (
 # ---------------------------------------------------------------------------
 
 def make_raw_response(status_code=200, body=None, headers=None, content_type="application/json"):
-    """Create a mock requests.Response with given properties."""
-    mock = MagicMock(spec=requests.Response)
+    """Create a mock httpx.Response with given properties."""
+    mock = MagicMock(spec=httpx.Response)
     mock.status_code = status_code
-    mock.ok = status_code < 400
     mock.headers = headers or {"Content-Type": content_type}
     if body is not None:
         if isinstance(body, bytes):
@@ -364,14 +363,13 @@ class TestPipelineResponseBuilder:
     def mock_services(self):
         """Create a service registry with a mock backend."""
         reg = ServiceRegistry({"backend": {"base_url": "http://backend:8000"}})
-        mock_resp = MagicMock(spec=requests.Response)
-        mock_resp.ok = True
+        mock_resp = MagicMock(spec=httpx.Response)
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"access_token": "abc", "refresh_token": "xyz", "extra": "field"}
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.content = b'{"access_token": "abc", "refresh_token": "xyz", "extra": "field"}'
         client = reg.get_client("backend")
-        client.request = MagicMock(return_value=mock_resp)
+        client.request = AsyncMock(return_value=mock_resp)
         return reg
 
     # ── Proxy + response_handler ─────────────────────

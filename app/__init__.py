@@ -5,6 +5,7 @@ FastAPI app factory for PyApiGate.
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI
@@ -37,7 +38,15 @@ def create_app(
     app_cfg = load_app_config(config_path)
     setup_logging(app_cfg)
 
-    application = FastAPI(title="PyApiGate")
+    all_registries = []
+
+    @asynccontextmanager
+    async def _lifespan(app):
+        yield
+        for reg in all_registries:
+            await reg.close_all()
+
+    application = FastAPI(title="PyApiGate", lifespan=_lifespan)
 
     # CORS middleware (optional)
     cors_cfg = app_cfg.get("cors")
@@ -71,6 +80,6 @@ def create_app(
     ]
 
     from app.engine.bootstrap import bootstrap
-    bootstrap(application, config_paths=config_paths)
+    _configs, all_registries = bootstrap(application, config_paths=config_paths)
 
     return application

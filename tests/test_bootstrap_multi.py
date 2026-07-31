@@ -12,7 +12,7 @@ class TestBootstrapMulti:
     def test_multiple_configs(self):
         """Two self-contained YAML files each register their own routes."""
         app = FastAPI()
-        configs = bootstrap(app, config_paths=[
+        configs, _ = bootstrap(app, config_paths=[
             "tests/test_configs/routes_v1.yaml",
             "tests/test_configs/routes_v2.yaml",
         ])
@@ -32,5 +32,5 @@ class TestBootstrapMulti:
     def test_empty_list(self):
         """Empty list doesn't crash."""
         app = FastAPI()
-        configs = bootstrap(app, config_paths=[])
+        configs, _ = bootstrap(app, config_paths=[])
         assert len(configs) == 0

@@ -6,10 +6,10 @@ _build_headers, _to_response, and execute_proxy.
 """
 
 import json as _json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import requests
+import httpx
 from starlette.requests import Request
 
 from app.engine.context import GatewayRequest, RouteContext
@@ -94,14 +94,13 @@ def ctx_with_jwt():
 @pytest.fixture
 def mock_services():
     reg = ServiceRegistry({"test_svc": {"base_url": "http://localhost:8000"}})
-    mock_resp = MagicMock(spec=requests.Response)
-    mock_resp.ok = True
+    mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.status_code = 200
     mock_resp.json.return_value = {"result": "ok"}
     mock_resp.headers = {"Content-Type": "application/json"}
     mock_resp.content = b'{"result": "ok"}'
     client = reg.get_client("test_svc")
-    client.request = MagicMock(return_value=mock_resp)
+    client.request = AsyncMock(return_value=mock_resp)
     return reg
 
 
@@ -527,7 +526,7 @@ class TestBuildHeaders:
 
 class TestToResponse:
     def test_json_response(self):
-        mock_resp = MagicMock(spec=requests.Response)
+        mock_resp = MagicMock(spec=httpx.Response)
         mock_resp.status_code = 200
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.json.return_value = {"result": "ok"}
@@ -537,7 +536,7 @@ class TestToResponse:
         assert body == {"result": "ok"}
 
     def test_non_json_response(self):
-        mock_resp = MagicMock(spec=requests.Response)
+        mock_resp = MagicMock(spec=httpx.Response)
         mock_resp.status_code = 200
         mock_resp.headers = {"Content-Type": "text/plain"}
         mock_resp.json.side_effect = ValueError("not json")
@@ -547,7 +546,7 @@ class TestToResponse:
         assert result.body == b"hello world"
 
     def test_error_status_preserved(self):
-        mock_resp = MagicMock(spec=requests.Response)
+        mock_resp = MagicMock(spec=httpx.Response)
         mock_resp.status_code = 404
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.json.return_value = {"error": "not found"}

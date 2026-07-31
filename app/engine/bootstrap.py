@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def bootstrap(
     app: FastAPI,
     config_paths: Optional[list[str]] = None,
-) -> list[GatewayConfig]:
+) -> tuple[list[GatewayConfig], list[ServiceRegistry]]:
     """
     Loads one or more YAML configs and registers routes in FastAPI.
 
@@ -37,7 +37,7 @@ def bootstrap(
         config_paths: List of paths to YAML files.
 
     Returns:
-        List of loaded GatewayConfig objects.
+        Tuple of (loaded GatewayConfig objects, list of ServiceRegistry instances).
     """
     # Healthcheck — один на всё приложение
     @app.get("/health", include_in_schema=False)
@@ -45,6 +45,7 @@ def bootstrap(
         return {"status": "ok"}
 
     loaded_configs = []
+    all_registries = []
 
     for path in config_paths:
         logger.info("Loading config: %s", path)
@@ -70,6 +71,7 @@ def bootstrap(
                 "timeout": svc.timeout,
             }
         registry = ServiceRegistry(services_dict)
+        all_registries.append(registry)
         logger.info("  services: %s", list(services_dict.keys()))
 
         # APIRouter со своим prefix
@@ -81,7 +83,7 @@ def bootstrap(
         app.include_router(router)
         logger.info("  registered %d routes at '%s'", len(config.routes), config.base_path or "/")
 
-    return loaded_configs
+    return loaded_configs, all_registries
 
 
 def _register_route(

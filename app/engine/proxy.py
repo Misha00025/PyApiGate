@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
-import requests as http_requests
+import httpx
 
 from app.engine.context import RouteContext
 from app.engine.proxy_request import RequestBuilder
@@ -23,12 +23,12 @@ from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
 from app.engine.status import bad_gateway, not_implemented
 
 
-async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> http_requests.Response:
-    """Execute proxy request, return raw requests.Response.
+async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> httpx.Response:
+    """Execute proxy request, return raw httpx.Response.
 
     Raises:
         ValueError: if proxy config is missing or service unknown
-        http_requests.RequestException: on upstream errors
+        httpx.RequestError: on upstream errors
     """
     proxy_cfg = route.proxy
     if proxy_cfg is None:
@@ -79,12 +79,12 @@ async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> http_requ
                 body.update(req_builder._body_merge)
 
     if proxy_cfg.skip_body or method in ("get", "delete"):
-        resp = client.request(method.upper(), target_path, headers=headers, params=params)
+        resp = await client.request(method.upper(), target_path, headers=headers, params=params)
     elif _force_json or ctx.request.is_json:
-        resp = client.request(method.upper(), target_path, headers=headers, params=params, json=body)
+        resp = await client.request(method.upper(), target_path, headers=headers, params=params, json=body)
     else:
         data = ctx.request.body if ctx.request.body else None
-        resp = client.request(method.upper(), target_path, headers=headers, params=params, data=data)
+        resp = await client.request(method.upper(), target_path, headers=headers, params=params, data=data)
 
     return resp
 
@@ -102,7 +102,7 @@ async def execute_proxy(route: RouteConfig, ctx: RouteContext) -> Response:
         resp = await _execute_proxy_raw(route, ctx)
     except ValueError as e:
         return not_implemented(str(e))
-    except http_requests.RequestException as e:
+    except httpx.RequestError as e:
         return bad_gateway(f"Upstream error: {e}")
 
     return _to_response(resp)
@@ -222,8 +222,8 @@ def _resolve_source(expr: str, ctx: RouteContext) -> Any:
     return expr
 
 
-def _to_response(resp: http_requests.Response) -> Response:
-    """Converts a requests.Response to a Starlette Response."""
+def _to_response(resp: httpx.Response) -> Response:
+    """Converts an httpx.Response to a Starlette Response."""
     content_type = resp.headers.get("Content-Type", "application/json")
 
     try:
