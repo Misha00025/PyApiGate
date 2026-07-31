@@ -109,6 +109,53 @@ async def add_tracking(ctx: RouteContext):
 
 > **Note:** If both `response_handler` and `response.wrap` are configured, `response.wrap` is applied **after** the handler, wrapping the modified response.
 
+## Pre-Request Handlers (asynchronous)
+
+Pre-request handlers modify the outgoing proxy request **before** it's sent to the backend service. They receive a `RequestBuilder` as a second argument which provides controlled methods for modifying headers, query parameters, body, and target path.
+
+Register them with `@register_pre_request_handler`:
+
+```python
+from app.engine.registry import register_pre_request_handler
+from app.engine.context import RouteContext
+from app.engine.proxy_request import RequestBuilder
+
+@register_pre_request_handler("add_auth_header")
+async def add_auth_header(ctx: RouteContext, req: RequestBuilder) -> None:
+    req.set_header("Authorization", f"Bearer {ctx.jwt.get('sub', 'unknown')}")
+    req.merge_body({"trace_id": ctx.state.get("request_id", "")})
+```
+
+Configure in YAML:
+
+```yaml
+- path: /api/users/{user_id}
+  methods: [GET, PUT]
+  proxy:
+    service: users
+    path: /users/{user_id}
+  pre_request_handler: add_auth_header
+  auth: required
+```
+
+The pipeline order is: `auth → access → pre_request_handler → proxy → response_handler (if any) → wrap (if any)`.
+
+> **Note:** Pre-request handlers only apply to **proxy routes**. They are ignored for handler-only routes (routes with `handler` but no `proxy`).
+
+> **Note:** Modifications from the pre-request handler are applied **on top of** any `params` configuration. If both `params.body` and `req.set_body()` are used, `set_body()` wins. Body merge operations combine with `params.body` injection.
+
+### RequestBuilder API
+
+| Method | Description |
+|--------|-------------|
+| `set_header(key, value)` | Set a request header (overrides any existing value) |
+| `remove_header(key)` | Remove a request header entirely |
+| `set_query_param(key, value)` | Set a query parameter (overrides any existing value) |
+| `remove_query_param(key)` | Remove a query parameter entirely |
+| `set_body(data)` / `set_json(data)` | Replace the request body entirely (must be JSON-serializable) |
+| `merge_body(data)` | Merge fields into the JSON request body |
+| `set_path(path)` | Override the proxy target path entirely |
+
 ## RouteContext API
 
 | Attribute | Type | Description |

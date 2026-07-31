@@ -72,6 +72,12 @@ class RouteConfig:
     """Response handler name, called after proxy execution to modify backend response."""
     handler: Optional[str] = None
     """Response handler name (if the route type is HANDLER)."""
+    pre_request_handler: Optional[str] = None
+    """
+    Pre-request handler name, called BEFORE proxy execution to modify
+    the outgoing request (headers, query params, body, path).
+    Handler signature: async def handler(ctx, req_builder).
+    """
     params: Optional[ParamsConfig] = None
     """Parameter injection settings."""
     response: Optional[ResponseConfig] = None

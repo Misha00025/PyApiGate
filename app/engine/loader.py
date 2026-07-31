@@ -176,6 +176,9 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
     # Response handler (for proxy routes)
     response_handler = route_def.get("response_handler")
 
+    # Pre-request handler (modifies proxy request before sending)
+    pre_request_handler = route_def.get("pre_request_handler")
+
     # Params
     params = None
     if "params" in route_def:
@@ -202,6 +205,7 @@ def _parse_single_route(path: str, route_def: dict) -> list[RouteConfig]:
             proxy=proxy,
             response_handler=response_handler,
             handler=handler,
+            pre_request_handler=pre_request_handler,
             params=params,
             response=response,
             description=description,

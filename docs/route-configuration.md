@@ -92,6 +92,26 @@ The pipeline is: `proxy → response_handler → wrap` — the handler modifies 
 
 > **Note:** Unlike `handler`, `response_handler` does **not** replace `proxy` — it complements it. The proxy request is always executed, and the handler only modifies the response.
 
+## Proxy Route with Pre-Request Handler
+
+Execute a pre-request handler **before** the proxy request to modify the outgoing request.
+
+```yaml
+- path: /api/users/{user_id}
+  methods: [GET, PUT]
+  proxy:
+    service: users
+    path: /users/{user_id}
+  pre_request_handler: add_auth_header
+  auth: required
+  params:
+    query: "*"
+```
+
+The pipeline is: `auth → access → pre_request_handler → proxy → response_handler (if any) → wrap`. The handler receives a `RequestBuilder` and can modify headers, query params, body, and target path. See [Pre-Request Handlers](writing-handlers.md#pre-request-handlers-asynchronous).
+
+> **Note:** `pre_request_handler` only applies to routes with `proxy`. It is ignored for handler-only routes.
+
 ## Multi-Method Routes
 
 Different configuration per HTTP method.
@@ -126,6 +146,7 @@ Flask-style `<int:user_id>` notation is automatically converted to `{user_id}`.
 | `methods` | list/dict | `[GET]` | HTTP methods |
 | `auth` | `"required"` / `"none"` | `"required"` | Whether JWT is required |
 | `access` | string | `null` | Access handler name |
+| `pre_request_handler` | string | `null` | Pre-request handler name — modifies the outgoing proxy request before it's sent. See [Pre-Request Handlers](writing-handlers.md#pre-request-handlers-asynchronous) |
 | `proxy` | object | `null` | Proxy configuration |
 | `response_handler` | string | `null` | Response handler name for proxy routes — see [Proxy Response Handlers](writing-handlers.md#proxy-response-handlers) |
 | `handler` | string | `null` | Response handler name |

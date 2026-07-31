@@ -114,3 +114,7 @@ auth_strategy_registry = Registry()
 register_access_handler = access_handler_registry.register
 register_response_handler = response_handler_registry.register
 register_auth_strategy = auth_strategy_registry.register
+
+# Pre-request handler registry
+pre_request_handler_registry = Registry()
+register_pre_request_handler = pre_request_handler_registry.register

@@ -15,6 +15,8 @@ from starlette.responses import Response
 import requests as http_requests
 
 from app.engine.context import RouteContext
+from app.engine.proxy_request import RequestBuilder
+from app.engine.registry import pre_request_handler_registry
 
 logger = logging.getLogger(__name__)
 from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
@@ -43,9 +45,42 @@ async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> http_requ
     params = _build_query_params(route, ctx)
     body = await _build_body(route, ctx)
 
+    # Pre-request handler: modify request before sending
+    _force_json = False
+    if route.pre_request_handler:
+        handler = pre_request_handler_registry.get(route.pre_request_handler)
+        if handler is None:
+            raise ValueError(f"Unknown pre_request_handler: {route.pre_request_handler}")
+
+        req_builder = RequestBuilder()
+        await handler(ctx, req_builder)
+
+        if not req_builder.is_empty():
+            # Apply path override
+            if req_builder._path is not None:
+                target_path = req_builder._path
+
+            # Apply header modifications
+            for k in req_builder._removed_headers:
+                headers.pop(k, None)
+            headers.update(req_builder._headers)
+
+            # Apply query param modifications
+            for k in req_builder._removed_query_params:
+                params.pop(k, None)
+            params.update(req_builder._query_params)
+
+            # Apply body modifications
+            if req_builder._body_override is not None:
+                body = req_builder._body_override
+                _force_json = True
+            elif req_builder._body_merge is not None and isinstance(body, dict):
+                body = dict(body)
+                body.update(req_builder._body_merge)
+
     if proxy_cfg.skip_body or method in ("get", "delete"):
         resp = client.request(method.upper(), target_path, headers=headers, params=params)
-    elif ctx.request.is_json:
+    elif _force_json or ctx.request.is_json:
         resp = client.request(method.upper(), target_path, headers=headers, params=params, json=body)
     else:
         data = ctx.request.body if ctx.request.body else None
