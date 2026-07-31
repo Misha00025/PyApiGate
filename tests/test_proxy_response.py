@@ -369,7 +369,7 @@ class TestPipelineResponseBuilder:
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.content = b'{"access_token": "abc", "refresh_token": "xyz", "extra": "field"}'
         client = reg.get_client("backend")
-        client.request = AsyncMock(return_value=mock_resp)
+        client.request_async = AsyncMock(return_value=mock_resp)
         return reg
 
     # ── Proxy + response_handler ─────────────────────

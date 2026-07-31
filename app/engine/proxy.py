@@ -79,12 +79,12 @@ async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> httpx.Res
                 body.update(req_builder._body_merge)
 
     if proxy_cfg.skip_body or method in ("get", "delete"):
-        resp = await client.request(method.upper(), target_path, headers=headers, params=params)
+        resp = await client.request_async(method.upper(), target_path, headers=headers, params=params)
     elif _force_json or ctx.request.is_json:
-        resp = await client.request(method.upper(), target_path, headers=headers, params=params, json=body)
+        resp = await client.request_async(method.upper(), target_path, headers=headers, params=params, json=body)
     else:
         data = ctx.request.body if ctx.request.body else None
-        resp = await client.request(method.upper(), target_path, headers=headers, params=params, data=data)
+        resp = await client.request_async(method.upper(), target_path, headers=headers, params=params, data=data)
 
     return resp
 

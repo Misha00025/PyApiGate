@@ -100,7 +100,7 @@ def mock_services():
     mock_resp.headers = {"Content-Type": "application/json"}
     mock_resp.content = b'{"result": "ok"}'
     client = reg.get_client("test_svc")
-    client.request = AsyncMock(return_value=mock_resp)
+    client.request_async = AsyncMock(return_value=mock_resp)
     return reg
 
 
@@ -647,7 +647,7 @@ class TestExecuteProxy:
         resp = await execute_proxy(route, ctx)
         assert resp.status_code == 200
         client = mock_services.get_client("test_svc")
-        call_kwargs = client.request.call_args[1]
+        call_kwargs = client.request_async.call_args[1]
         assert "data" in call_kwargs
         assert call_kwargs["data"] == body_bytes
 
@@ -673,7 +673,7 @@ class TestExecuteProxy:
         resp = await execute_proxy(route, ctx)
         assert resp.status_code == 200
         client = mock_services.get_client("test_svc")
-        call_kwargs = client.request.call_args[1]
+        call_kwargs = client.request_async.call_args[1]
         assert "data" in call_kwargs
         headers = call_kwargs.get("headers", {})
         assert "content-type" in headers

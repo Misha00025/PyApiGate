@@ -17,32 +17,60 @@ class ServiceClient:
     """HTTP client for a single backend service."""
 
     def __init__(self, base_url: str, timeout: int = 30):
-        self.base_url = base_url.rstrip("/")
-        self._client = httpx.AsyncClient(
-            base_url=self.base_url,
+        base = base_url.rstrip("/")
+        self.base_url = base
+        self._sync_client = httpx.Client(
+            base_url=base,
+            timeout=httpx.Timeout(timeout),
+        )
+        self._async_client = httpx.AsyncClient(
+            base_url=base,
             timeout=httpx.Timeout(timeout),
         )
 
-    async def request(self, method: str, path: str, **kwargs) -> httpx.Response:
-        return await self._client.request(method, path, **kwargs)
+    # ── Synchronous methods (backwards compatible) ──
 
-    async def get(self, path: str, **kwargs) -> httpx.Response:
-        return await self.request("GET", path, **kwargs)
+    def request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        return self._sync_client.request(method, path, **kwargs)
 
-    async def post(self, path: str, **kwargs) -> httpx.Response:
-        return await self.request("POST", path, **kwargs)
+    def get(self, path: str, **kwargs) -> httpx.Response:
+        return self._sync_client.request("GET", path, **kwargs)
 
-    async def put(self, path: str, **kwargs) -> httpx.Response:
-        return await self.request("PUT", path, **kwargs)
+    def post(self, path: str, **kwargs) -> httpx.Response:
+        return self._sync_client.request("POST", path, **kwargs)
 
-    async def patch(self, path: str, **kwargs) -> httpx.Response:
-        return await self.request("PATCH", path, **kwargs)
+    def put(self, path: str, **kwargs) -> httpx.Response:
+        return self._sync_client.request("PUT", path, **kwargs)
 
-    async def delete(self, path: str, **kwargs) -> httpx.Response:
-        return await self.request("DELETE", path, **kwargs)
+    def patch(self, path: str, **kwargs) -> httpx.Response:
+        return self._sync_client.request("PATCH", path, **kwargs)
+
+    def delete(self, path: str, **kwargs) -> httpx.Response:
+        return self._sync_client.request("DELETE", path, **kwargs)
+
+    # ── Async methods (for use in async handlers / engine) ──
+
+    async def request_async(self, method: str, path: str, **kwargs) -> httpx.Response:
+        return await self._async_client.request(method, path, **kwargs)
+
+    async def get_async(self, path: str, **kwargs) -> httpx.Response:
+        return await self._async_client.request("GET", path, **kwargs)
+
+    async def post_async(self, path: str, **kwargs) -> httpx.Response:
+        return await self._async_client.request("POST", path, **kwargs)
+
+    async def put_async(self, path: str, **kwargs) -> httpx.Response:
+        return await self._async_client.request("PUT", path, **kwargs)
+
+    async def patch_async(self, path: str, **kwargs) -> httpx.Response:
+        return await self._async_client.request("PATCH", path, **kwargs)
+
+    async def delete_async(self, path: str, **kwargs) -> httpx.Response:
+        return await self._async_client.request("DELETE", path, **kwargs)
 
     async def close(self):
-        await self._client.aclose()
+        await self._async_client.aclose()
+        self._sync_client.close()
 
 
 class ServiceRegistry:

@@ -246,7 +246,7 @@ class TestPipelinePreRequestHandler:
         reg = ServiceRegistry({"backend": {"base_url": "http://backend:8000"}})
         mock_resp = make_raw_response(status_code=200, body={"result": "ok"})
         client = reg.get_client("backend")
-        client.request = AsyncMock(return_value=mock_resp)
+        client.request_async = AsyncMock(return_value=mock_resp)
         return reg
 
     # ── Header modification ───────────────────────────
@@ -271,7 +271,7 @@ class TestPipelinePreRequestHandler:
 
         # Verify the header was sent to the backend
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         assert kwargs["headers"].get("Authorization") == "Bearer mytoken"
 
     @pytest.mark.asyncio
@@ -293,7 +293,7 @@ class TestPipelinePreRequestHandler:
         await execute_pipeline(route, ctx)
 
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         # X-Internal wasn't set in the first place, but the removal code path was exercised
         assert "X-Internal" not in kwargs["headers"]
 
@@ -318,7 +318,7 @@ class TestPipelinePreRequestHandler:
         await execute_pipeline(route, ctx)
 
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         assert kwargs["params"].get("api_key") == "secret123"
 
     @pytest.mark.asyncio
@@ -340,7 +340,7 @@ class TestPipelinePreRequestHandler:
         await execute_pipeline(route, ctx)
 
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         assert "internal" not in kwargs["params"]
 
     # ── Body modification ─────────────────────────────
@@ -364,7 +364,7 @@ class TestPipelinePreRequestHandler:
         await execute_pipeline(route, ctx)
 
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         assert kwargs.get("json") == {"custom": "body"}
 
     @pytest.mark.asyncio
@@ -386,7 +386,7 @@ class TestPipelinePreRequestHandler:
         await execute_pipeline(route, ctx)
 
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         assert kwargs.get("json") == {"original": "data", "trace_id": "abc-123"}
 
     # ── Path modification ─────────────────────────────
@@ -410,7 +410,7 @@ class TestPipelinePreRequestHandler:
         await execute_pipeline(route, ctx)
 
         client = mock_services.get_client("backend")
-        args, kwargs = client.request.call_args
+        args, kwargs = client.request_async.call_args
         # First positional arg is the method, second is the url
         url = args[1] if len(args) > 1 else ""
         assert "/new/path/456" in url
@@ -501,7 +501,7 @@ class TestPipelinePreRequestHandler:
 
         # Verify pre-request sent header to backend
         client = mock_services.get_client("backend")
-        _, kwargs = client.request.call_args
+        _, kwargs = client.request_async.call_args
         assert kwargs["headers"].get("X-Pre") == "yes"
 
         # Verify response handler modified the response
