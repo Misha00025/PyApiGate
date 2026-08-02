@@ -23,6 +23,7 @@ from app.engine.registry import (
     response_handler_registry,
     ServiceRegistry,
 )
+from app.engine.service_response import ServiceResponse
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +31,7 @@ from app.engine.registry import (
 # ---------------------------------------------------------------------------
 
 def make_raw_response(status_code=200, body=None, headers=None, content_type="application/json"):
-    """Create a mock httpx.Response with given properties."""
+    """Create a mock ServiceResponse with given properties."""
     mock = MagicMock(spec=httpx.Response)
     mock.status_code = status_code
     mock.headers = headers or {"Content-Type": content_type}
@@ -52,7 +53,7 @@ def make_raw_response(status_code=200, body=None, headers=None, content_type="ap
             mock.json.return_value = {}
         else:
             mock.json.side_effect = ValueError("not json")
-    return mock
+    return ServiceResponse(mock)
 
 
 async def make_gateway_request(method="GET", path="/test", body=None,
@@ -369,7 +370,7 @@ class TestPipelineResponseBuilder:
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.content = b'{"access_token": "abc", "refresh_token": "xyz", "extra": "field"}'
         client = reg.get_client("backend")
-        client.request_async = AsyncMock(return_value=mock_resp)
+        client.request_async = AsyncMock(return_value=ServiceResponse(mock_resp))
         return reg
 
     # ── Proxy + response_handler ─────────────────────

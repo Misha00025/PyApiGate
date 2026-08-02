@@ -12,6 +12,8 @@ from typing import Any, Callable, Optional
 
 import httpx
 
+from app.engine.service_response import ServiceResponse
+
 
 class ServiceClient:
     """HTTP client for a single backend service."""
@@ -30,43 +32,43 @@ class ServiceClient:
 
     # ── Synchronous methods (backwards compatible) ──
 
-    def request(self, method: str, path: str, **kwargs) -> httpx.Response:
-        return self._sync_client.request(method, path, **kwargs)
+    def request(self, method: str, path: str, **kwargs) -> ServiceResponse:
+        return ServiceResponse(self._sync_client.request(method, path, **kwargs))
 
-    def get(self, path: str, **kwargs) -> httpx.Response:
-        return self._sync_client.request("GET", path, **kwargs)
+    def get(self, path: str, **kwargs) -> ServiceResponse:
+        return self.request("GET", path, **kwargs)
 
-    def post(self, path: str, **kwargs) -> httpx.Response:
-        return self._sync_client.request("POST", path, **kwargs)
+    def post(self, path: str, **kwargs) -> ServiceResponse:
+        return self.request("POST", path, **kwargs)
 
-    def put(self, path: str, **kwargs) -> httpx.Response:
-        return self._sync_client.request("PUT", path, **kwargs)
+    def put(self, path: str, **kwargs) -> ServiceResponse:
+        return self.request("PUT", path, **kwargs)
 
-    def patch(self, path: str, **kwargs) -> httpx.Response:
-        return self._sync_client.request("PATCH", path, **kwargs)
+    def patch(self, path: str, **kwargs) -> ServiceResponse:
+        return self.request("PATCH", path, **kwargs)
 
-    def delete(self, path: str, **kwargs) -> httpx.Response:
-        return self._sync_client.request("DELETE", path, **kwargs)
+    def delete(self, path: str, **kwargs) -> ServiceResponse:
+        return self.request("DELETE", path, **kwargs)
 
     # ── Async methods (for use in async handlers / engine) ──
 
-    async def request_async(self, method: str, path: str, **kwargs) -> httpx.Response:
-        return await self._async_client.request(method, path, **kwargs)
+    async def request_async(self, method: str, path: str, **kwargs) -> ServiceResponse:
+        return ServiceResponse(await self._async_client.request(method, path, **kwargs))
 
-    async def get_async(self, path: str, **kwargs) -> httpx.Response:
-        return await self._async_client.request("GET", path, **kwargs)
+    async def get_async(self, path: str, **kwargs) -> ServiceResponse:
+        return await self.request_async("GET", path, **kwargs)
 
-    async def post_async(self, path: str, **kwargs) -> httpx.Response:
-        return await self._async_client.request("POST", path, **kwargs)
+    async def post_async(self, path: str, **kwargs) -> ServiceResponse:
+        return await self.request_async("POST", path, **kwargs)
 
-    async def put_async(self, path: str, **kwargs) -> httpx.Response:
-        return await self._async_client.request("PUT", path, **kwargs)
+    async def put_async(self, path: str, **kwargs) -> ServiceResponse:
+        return await self.request_async("PUT", path, **kwargs)
 
-    async def patch_async(self, path: str, **kwargs) -> httpx.Response:
-        return await self._async_client.request("PATCH", path, **kwargs)
+    async def patch_async(self, path: str, **kwargs) -> ServiceResponse:
+        return await self.request_async("PATCH", path, **kwargs)
 
-    async def delete_async(self, path: str, **kwargs) -> httpx.Response:
-        return await self._async_client.request("DELETE", path, **kwargs)
+    async def delete_async(self, path: str, **kwargs) -> ServiceResponse:
+        return await self.request_async("DELETE", path, **kwargs)
 
     async def close(self):
         await self._async_client.aclose()

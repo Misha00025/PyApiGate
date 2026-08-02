@@ -24,6 +24,7 @@ from app.engine.proxy import (
     execute_proxy,
 )
 from app.engine.registry import ServiceRegistry
+from app.engine.service_response import ServiceResponse
 
 
 async def make_gateway_request(
@@ -100,7 +101,7 @@ def mock_services():
     mock_resp.headers = {"Content-Type": "application/json"}
     mock_resp.content = b'{"result": "ok"}'
     client = reg.get_client("test_svc")
-    client.request_async = AsyncMock(return_value=mock_resp)
+    client.request_async = AsyncMock(return_value=ServiceResponse(mock_resp))
     return reg
 
 
@@ -530,7 +531,7 @@ class TestToResponse:
         mock_resp.status_code = 200
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.json.return_value = {"result": "ok"}
-        result = _to_response(mock_resp)
+        result = _to_response(ServiceResponse(mock_resp))
         assert result.status_code == 200
         body = _json.loads(result.body)
         assert body == {"result": "ok"}
@@ -541,7 +542,7 @@ class TestToResponse:
         mock_resp.headers = {"Content-Type": "text/plain"}
         mock_resp.json.side_effect = ValueError("not json")
         mock_resp.content = b"hello world"
-        result = _to_response(mock_resp)
+        result = _to_response(ServiceResponse(mock_resp))
         assert result.status_code == 200
         assert result.body == b"hello world"
 
@@ -550,7 +551,7 @@ class TestToResponse:
         mock_resp.status_code = 404
         mock_resp.headers = {"Content-Type": "application/json"}
         mock_resp.json.return_value = {"error": "not found"}
-        result = _to_response(mock_resp)
+        result = _to_response(ServiceResponse(mock_resp))
         assert result.status_code == 404
         body = _json.loads(result.body)
         assert body == {"error": "not found"}

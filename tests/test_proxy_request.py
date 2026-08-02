@@ -26,6 +26,7 @@ from app.engine.registry import (
     response_handler_registry,
     ServiceRegistry,
 )
+from app.engine.service_response import ServiceResponse
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +247,7 @@ class TestPipelinePreRequestHandler:
         reg = ServiceRegistry({"backend": {"base_url": "http://backend:8000"}})
         mock_resp = make_raw_response(status_code=200, body={"result": "ok"})
         client = reg.get_client("backend")
-        client.request_async = AsyncMock(return_value=mock_resp)
+        client.request_async = AsyncMock(return_value=ServiceResponse(mock_resp))
         return reg
 
     # ── Header modification ───────────────────────────

@@ -18,13 +18,15 @@ from app.engine.context import RouteContext
 from app.engine.proxy_request import RequestBuilder
 from app.engine.registry import pre_request_handler_registry
 
+from app.engine.service_response import ServiceResponse
+
 logger = logging.getLogger(__name__)
 from app.engine.models import ParamsConfig, ProxyConfig, RouteConfig
 from app.engine.status import bad_gateway, not_implemented
 
 
-async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> httpx.Response:
-    """Execute proxy request, return raw httpx.Response.
+async def _execute_proxy_raw(route: RouteConfig, ctx: RouteContext) -> ServiceResponse:
+    """Execute proxy request, return raw ServiceResponse.
 
     Raises:
         ValueError: if proxy config is missing or service unknown
@@ -222,8 +224,8 @@ def _resolve_source(expr: str, ctx: RouteContext) -> Any:
     return expr
 
 
-def _to_response(resp: httpx.Response) -> Response:
-    """Converts an httpx.Response to a Starlette Response."""
+def _to_response(resp: ServiceResponse) -> Response:
+    """Converts a ServiceResponse to a Starlette Response."""
     content_type = resp.headers.get("Content-Type", "application/json")
 
     try:
