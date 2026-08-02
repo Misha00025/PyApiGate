@@ -454,7 +454,9 @@ class TestBuildHeaders:
         proxy_cfg = ProxyConfig(service="test", path="/api", headers={})
         result = _build_headers(ctx, proxy_cfg)
         assert "host" not in result
-        # content-type and content-length are forwarded now (not filtered)
+        assert "content-length" not in result
+        assert "transfer-encoding" not in result
+        # content-type is forwarded (not filtered)
 
     @pytest.mark.asyncio
     async def test_extra_headers_from_config(self):
